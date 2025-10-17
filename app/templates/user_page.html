@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Home</title>
+    <title>Профиль {{ user.login }}</title>
     <style>
         body { font-family: Arial, sans-serif; background-color: #f3f4f6; text-align: center; }
         .card {
@@ -17,8 +17,10 @@
 </head>
 <body>
     <div class="card">
-        <a href="/auth/login">Login</a>
-        <a href="/auth/register">Register</a>
-        <a href="/user/{user.id}">User</a>
+        <h2>Добро пожаловать, {{ user.login }}!</h2>
+        <p>Email: {{ user.email }}</p>
+        <p>Дата регистрации: {{ user.create_date.strftime('%d.%m.%Y') }}</p>
+        <a href="/auth/logout">Выйти</a>
     </div>
 </body>
+</html>
