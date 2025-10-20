@@ -20,6 +20,7 @@
         <h2>Добро пожаловать, {{ user.login }}!</h2>
         <p>Email: {{ user.email }}</p>
         <p>Дата регистрации: {{ user.create_date.strftime('%d.%m.%Y') }}</p>
+        <a href="/expenses">Затраты</a>
         <a href="/auth/logout">Выйти</a>
     </div>
 </body>

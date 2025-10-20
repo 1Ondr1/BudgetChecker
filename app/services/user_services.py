@@ -1,4 +1,4 @@
-from fastapi import HTTPException, Request
+from fastapi import Request
 from sqlalchemy.orm import Session
 
 from ..models.user import User
@@ -36,5 +36,5 @@ def get_current_user(request: Request):
 
     payload = verify_jwt(token)
     if not payload:
-        raise HTTPException(status_code=401, detail="Bad token")
+        return 401
     return payload

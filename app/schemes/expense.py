@@ -1,10 +1,13 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
+
+from .category import CategoryBase
 
 
 class ExpenseBase(BaseModel):
-    category: str
+    user_id: int
+    category: CategoryBase
     amount: float
 
 
@@ -13,8 +16,7 @@ class ExpenseCreate(ExpenseBase):
 
 
 class ExpenseResponse(ExpenseBase):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     date: datetime
-
-    class Config:
-        orm_mode = True
