@@ -9,6 +9,11 @@ from ..utils.jwt_handler import verify_jwt
 def create_user(login: str, email: str, password: str, db: Session) -> User:
     hashed_pw = hash_password(password)
     user = User(login=login, email=email, password=hashed_pw)
+    if (
+        db.query(User).filter(User.email.ilike(email)).first()
+        or db.query(User).filter(User.login.ilike(login)).first()
+    ):
+        return None
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -16,7 +21,7 @@ def create_user(login: str, email: str, password: str, db: Session) -> User:
 
 
 def auth_user(login: str, password: str, db: Session):
-    user = db.query(User).filter(User.login == login).first()
+    user = db.query(User).filter(User.login.ilike(login)).first()
     if not user:
         return None
     if not verify_password(password, user.password):

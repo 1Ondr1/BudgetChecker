@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -13,23 +13,37 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register")
 def register(
+    request: Request,
     login: str = Form(...),
     email: str = Form(...),
     password: str = Form(...),
     db: Session = Depends(get_db),
 ) -> UserResponse:
-
     user = user_services.create_user(login, email, password, db)
-    return UserResponse.model_validate(user)
+    if not user:
+        return templates.TemplateResponse(
+            "register.html",
+            {
+                "request": request,
+                "error": "User with this login or email already exist",
+            },
+        )
+    UserResponse.model_validate(user)
+    return RedirectResponse(url="/auth/login", status_code=303)
 
 
 @router.post("/login")
 def login(
-    login: str = Form(...), password: str = Form(...), db: Session = Depends(get_db)
+    request: Request,
+    login: str = Form(...),
+    password: str = Form(...),
+    db: Session = Depends(get_db),
 ) -> UserResponse:
     user = user_services.auth_user(login, password, db)
     if not user:
-        raise HTTPException(status_code=401, detail="Wrong password or login")
+        return templates.TemplateResponse(
+            "login.html", {"request": request, "error": "Wrong login or password"}
+        )
 
     token = create_jwt(user)
 

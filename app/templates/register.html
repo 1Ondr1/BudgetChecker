@@ -54,6 +54,11 @@
             <input type="text" name="login" placeholder="Логин" required>
             <input type="email" name="email" placeholder="Email" required>
             <input type="password" name="password" placeholder="Пароль" required>
+            {% if error %}
+                <div style="color: red; text-align: center; margin-bottom: 10px;">
+                    {{ error }}
+                </div>
+            {% endif %}
             <button type="submit">Зарегистрироваться</button>
         </form>
         <div class="link">
