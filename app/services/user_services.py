@@ -38,3 +38,12 @@ def get_current_user(request: Request):
     if not payload:
         return 401
     return payload
+
+
+def delete_user(user_id: int, db: Session):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        return None
+    db.delete(user)
+    db.commit()
+    return user

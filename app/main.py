@@ -3,9 +3,9 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 
+from . import models  # noqa: F401
 from .config import BASE_DIR
 from .database import Base, engine
-from .models import expense, user
 from .routers import auth, expense, user
 from .services.user_services import get_current_user
 

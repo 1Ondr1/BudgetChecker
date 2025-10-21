@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from ..config import templates
 from ..database import get_db
 from ..models.user import User
-from ..services.user_services import get_current_user
+from ..services.user_services import delete_user, get_current_user
 
 router = APIRouter(prefix="/user", tags=["user"])
 
@@ -27,11 +27,6 @@ def user_page(
 
 
 @router.delete("/user/{user.id}")
-def delete_user(user_id: int, db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    db.delete(user)
-    db.commit()
+def delete(user_id: int, db: Session = Depends(get_db)):
+    user = delete_user(user_id=user_id, db=db)
     return {"message": f"User {user.login} was deleted"}
