@@ -14,7 +14,7 @@
     h1 { font-size: 24px; margin:0; }
     .card { background:var(--card); border-radius:12px; box-shadow: 0 2px 10px rgba(0,0,0,.06); padding:16px; margin-bottom:16px; }
     .filters form, .add form { display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:12px; }
-    .filters input, .filters select, .filters datalist, .filters a, .add input, .add select, .add button, .filters button { padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; }
+    .filters input, .filters select, .filters datalist, .card a, .add input, .add select, .add button, .filters button { padding:10px 12px; border:1px solid #e5e7eb; border-radius:8px; font-size:14px; }
     .filters button { background:var(--card); cursor:pointer; }
     .btn { padding:10px 12px; border-radius:8px; border:0; cursor:pointer; font-weight:600; }
     .btn-primary { background:var(--prim); color:#fff; }
@@ -43,6 +43,10 @@
           Итого: {{ expenses|sum(attribute='amount') if expenses else 0 }} ₽
         </span>
       </div>
+    </div>
+
+    <div class="card">
+      <a href="/forecast" class="btn">Прогнозы</a>
     </div>
 
     <!-- ФИЛЬТРЫ -->

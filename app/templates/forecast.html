@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Прогноз расходов</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background:#f7f7fa; margin:0; padding:20px; color:#111; }
+    h1 { text-align:center; }
+    table { width:100%; border-collapse:collapse; background:#fff; margin-top:20px; }
+    th, td { padding:10px; border:1px solid #ddd; text-align:center; }
+    th { background:#f0f2f5; text-transform:uppercase; font-size:13px; letter-spacing:.03em; }
+    .predicted { color:#2563eb; font-weight:500; }
+    .empty { text-align:center; padding:24px; color:#666; background:#fff; }
+    .controls { margin-bottom:20px; text-align:center; }
+    .controls form { display:inline-block; }
+    input, select, button { padding:8px 10px; border:1px solid #ccc; border-radius:6px; margin:0 4px; }
+    button { background:#2563eb; color:#fff; border:0; cursor:pointer; }
+    button:hover { background:#1e4fcc; }
+  </style>
+</head>
+<body>
+  <h1>Прогноз расходов</h1>
+
+  <div class="controls">
+    <form method="get" action="/forecast/monthly">
+      <input type="month" name="month_from" value="{{ month_from or '' }}" required>
+      <input type="month" name="month_to" value="{{ month_to or '' }}" required>
+      <select name="window">
+        <option value="">Окно сглаживания</option>
+        <option value="3" {% if window==3 %}selected{% endif %}>3</option>
+        <option value="6" {% if window==6 %}selected{% endif %}>6</option>
+        <option value="12" {% if window==12 %}selected{% endif %}>12</option>
+      </select>
+      <button type="submit">Обновить</button>
+      <a href="/forecast"><button type="button">Сбросить</button></a>
+    </form>
+  </div>
+
+  {% if not expenses or expenses|length == 0 %}
+    <div class="empty">
+      Нет данных для прогноза. Добавьте расходы или измените период.
+    </div>
+  {% else %}
+    <table>
+      <thead>
+        <tr>
+          <th>Месяц</th>
+          <th>Фактические расходы</th>
+          <th>Прогноз</th>
+          <th>Изменение</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for e in expenses %}
+            <tr>
+                <td>{{ e.date.strftime('%Y-%m') }}</td>
+                <td>{{ '%.2f'|format(e.amount) }}</td>
+            </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% endif %}
+</body>
+</html>

@@ -14,7 +14,7 @@ def create_jwt(user: User) -> str:
     payload = {
         "user_id": user.id,
         "login": user.login,
-        "exp": datetime.now(timezone.utc) + timedelta(minutes=30),
+        "exp": datetime.now(timezone.utc) + timedelta(days=30),
     }
     token = jwt.encode(payload, SECRET_KEY, algorithm="HS256")
     return token

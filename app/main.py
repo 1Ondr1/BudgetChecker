@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from . import models  # noqa: F401
 from .config import BASE_DIR
 from .database import Base, engine
-from .routers import auth, expense, user
+from .routers import auth, expense, forecast, user
 from .services.user_services import get_current_user
 
 Base.metadata.create_all(bind=engine)
@@ -16,6 +16,7 @@ app = FastAPI(title="Budget Checker")
 app.include_router(auth.router)
 app.include_router(user.router)
 app.include_router(expense.router)
+app.include_router(forecast.router)
 
 app.mount("/app/static", StaticFiles(directory=BASE_DIR / "app/static"), name="static")
 

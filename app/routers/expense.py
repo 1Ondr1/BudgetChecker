@@ -1,4 +1,3 @@
-# TODO Сделать фильтрацию, добавление, удаление и редактирование затрат
 from typing import Optional
 
 from fastapi import Depends, Form, HTTPException, Request
@@ -58,7 +57,6 @@ def add_expense(
     current_user: Session = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    print(amount)
     if current_user == 401:
         return RedirectResponse(url="/auth/login", status_code=303)
     expense = add_new_expense(
