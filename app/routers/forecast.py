@@ -1,10 +1,12 @@
 # TODO сделать отделюную структуру для ежемесячных расходов и переделать под это прогнозирование и вывод на странице
+
 from datetime import datetime
 
 from fastapi import Depends, Query
 from fastapi.requests import Request
 from fastapi.responses import HTMLResponse
 from fastapi.routing import APIRouter
+from sqlalchemy import asc, func
 from sqlalchemy.orm import Session
 
 from ..config import templates
@@ -30,13 +32,25 @@ def get_monthly_expenses(
     window: int = Query(3),
     db: Session = Depends(get_db),
 ):
-    expenses = db.query(Expense).filter(Expense.user_id == current_user["user_id"])
-    expenses = expenses.filter(Expense.date >= datetime.strptime(month_from, "%Y-%m"))
-    expenses = expenses.filter(Expense.date <= datetime.strptime(month_to, "%Y-%m"))
-    expenses = expenses.all()
-    forecast = monthly_forecast(expenses=expenses, window=window)
-    expenses.append(forecast)
+    date_group = func.date_trunc("month", Expense.date)
+    expenses = (
+        db.query(
+            date_group.label("month"),
+            func.sum(Expense.amount).label("total_amount"),
+        )
+        .filter(Expense.user_id == current_user["user_id"])
+        .group_by("month")
+    )
+    if month_from:
+        expenses = expenses.filter(
+            date_group >= datetime.strptime(month_from, "%Y-%m").date()
+        )
+    if month_to:
+        expenses = expenses.filter(
+            date_group <= datetime.strptime(month_to, "%Y-%m").date()
+        )
+    expenses = expenses.order_by(asc("month")).all()
+    forecast = monthly_forecast(expenses=expenses, window=window, month_to=month_to)
     return templates.TemplateResponse(
-        "forecast.html",
-        {"request": request, "expenses": expenses},
+        "forecast.html", {"request": request, "forecast": forecast}
     )

@@ -49,7 +49,11 @@ def login(
 
     response = RedirectResponse(url="/user/home", status_code=303)
     response.set_cookie(
-        key="access_token", value=token, httponly=True, max_age=1800, samesite="lax"
+        key="access_token",
+        value=token,
+        httponly=True,
+        max_age=30 * 24 * 60 * 60,
+        samesite="lax",
     )
     return response
 

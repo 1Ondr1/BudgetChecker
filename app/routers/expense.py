@@ -3,6 +3,7 @@ from typing import Optional
 from fastapi import Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.routing import APIRouter
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from ..config import templates
@@ -30,12 +31,12 @@ def get_expenses(
     categories = db.query(Category).all()
     expenses = db.query(Expense).filter(Expense.user_id == current_user["user_id"])
     if date_from:
-        expenses = expenses.filter(Expense.date >= date_from)
+        expenses = expenses.filter(Expense.date >= date_from).od
     if date_to:
         expenses = expenses.filter(Expense.date <= date_to)
     if category:
         expenses = expenses.filter(Expense.category.has(Category.name == category))
-    expenses = expenses.all()
+    expenses = expenses.order_by(desc(Expense.date)).all()
     return templates.TemplateResponse(
         "expenses.html",
         {
