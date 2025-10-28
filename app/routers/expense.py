@@ -3,22 +3,19 @@ from typing import Optional
 from fastapi import Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.routing import APIRouter
-from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from ..config import templates
 from ..database import get_db
-from ..models.category import Category
-from ..models.expense import Expense
 from ..schemes.expense import ExpenseResponse
-from ..services.expense_services import add_new_expense, delete_expense
+from ..services.expense_services import add_new_expense, delete_expense, get_expenses
 from ..services.user_services import get_current_user
 
 router = APIRouter(prefix="/expenses", tags=["expenses"])
 
 
 @router.get("/", response_class=HTMLResponse)
-def get_expenses(
+def show_expenses(
     request: Request,
     current_user: Session = Depends(get_current_user),
     date_from: Optional[str] = None,
@@ -28,15 +25,13 @@ def get_expenses(
 ):
     if current_user == 401:
         return RedirectResponse(url="/auth/login", status_code=303)
-    categories = db.query(Category).all()
-    expenses = db.query(Expense).filter(Expense.user_id == current_user["user_id"])
-    if date_from:
-        expenses = expenses.filter(Expense.date >= date_from).od
-    if date_to:
-        expenses = expenses.filter(Expense.date <= date_to)
-    if category:
-        expenses = expenses.filter(Expense.category.has(Category.name == category))
-    expenses = expenses.order_by(desc(Expense.date)).all()
+    categories, expenses = get_expenses(
+        user_id=current_user["user_id"],
+        date_from=date_from,
+        date_to=date_to,
+        category=category,
+        db=db,
+    )
     return templates.TemplateResponse(
         "expenses.html",
         {

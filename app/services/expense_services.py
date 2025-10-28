@@ -1,6 +1,23 @@
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import desc
 
+from ..models.category import Category
 from ..models.expense import Expense
+
+
+def get_expenses(
+    user_id: str, date_from: str, date_to: str, category: str, db: Session
+):
+    categories = db.query(Category).all()
+    expenses = db.query(Expense).filter(Expense.user_id == user_id)
+    if date_from:
+        expenses = expenses.filter(Expense.date >= date_from).od
+    if date_to:
+        expenses = expenses.filter(Expense.date <= date_to)
+    if category:
+        expenses = expenses.filter(Expense.category.has(Category.name == category))
+    expenses = expenses.order_by(desc(Expense.date)).all()
+    return categories, expenses
 
 
 def add_new_expense(

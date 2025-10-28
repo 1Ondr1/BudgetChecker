@@ -4,8 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..config import templates
 from ..database import get_db
-from ..models.user import User
-from ..services.user_services import delete_user, get_current_user
+from ..services.user_services import check_user, delete_user, get_current_user
 
 router = APIRouter(prefix="/user", tags=["user"])
 
@@ -18,7 +17,7 @@ def user_page(
 ):
     if current_user == 401:
         return RedirectResponse(url="/auth/login", status_code=303)
-    user = db.query(User).filter(User.id == current_user["user_id"]).first()
+    user = check_user(current_user["user_id"], db)
     if not user:
         return HTTPException(status_code=404, detail="User not found")
     return templates.TemplateResponse(

@@ -1,5 +1,3 @@
-# TODO сделать отделюную структуру для ежемесячных расходов и переделать под это прогнозирование и вывод на странице
-
 from datetime import datetime
 
 from fastapi import Depends, Query

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Аналитика расходов</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background:#f7f7fa; margin:0; padding:24px; color:#111; }
+    h1 { text-align:center; margin-bottom:20px; }
+
+    /* Табы */
+    .tabs { max-width:900px; margin:0 auto; background:#fff; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.05); }
+    input[type="radio"] { display:none; }
+    label { display:inline-block; padding:12px 24px; cursor:pointer; border-bottom:2px solid transparent; font-weight:500; }
+    label:hover { background:#f3f4f6; }
+    input:checked + label { border-bottom:2px solid #2563eb; color:#2563eb; background:#f9fafb; }
+
+    .tab-content { display:none; padding:20px; border-top:1px solid #e5e7eb; }
+    #tab1:checked ~ #content1,
+    #tab2:checked ~ #content2 { display:block; }
+
+    /* Форма */
+    .controls { text-align:center; margin-bottom:16px; }
+    .controls form { display:inline-block; }
+    input, button { padding:8px 10px; border:1px solid #ccc; border-radius:6px; margin:0 4px; }
+    button { background:#2563eb; color:#fff; border:0; cursor:pointer; }
+    button:hover { background:#1e4fcc; }
+
+    /* Таблица */
+    table { width:100%; border-collapse:collapse; background:#fff; margin-top:16px; }
+    th, td { padding:10px; border:1px solid #e5e7eb; text-align:center; }
+    th { background:#f0f2f5; text-transform:uppercase; font-size:13px; letter-spacing:.03em; }
+    .empty { text-align:center; padding:24px; background:#fff; color:#666; }
+
+    img.chart { width:100%; max-width:700px; display:block; margin:24px auto; border-radius:8px; box-shadow:0 2px 6px rgba(0,0,0,0.08); }
+  </style>
+</head>
+<body>
+  <h1>Аналитика расходов</h1>
+
+  <div class="controls">
+    <form method="get" action="/analytics">
+      <input type="month" name="month_from" value="{{ month_from }}" required>
+      <input type="month" name="month_to" value="{{ month_to }}" required>
+      <button type="submit">Показать</button>
+      <a href="/analytics"><button type="button">Сбросить</button></a>
+    </form>
+  </div>
+
+  <div class="tabs">
+    <input type="radio" name="tab" id="tab1" checked>
+    <label for="tab1">Помесячный анализ</label>
+    <input type="radio" name="tab" id="tab2">
+    <label for="tab2">По категориям</label>
+
+    <div class="tab-content" id="content1">
+      {% if not monthly_expenses or monthly_expenses|length == 0 %}
+        <div class="empty">Нет данных для выбранного периода.</div>
+      {% else %}
+        <table>
+          <thead>
+            <tr>
+              <th>Месяц</th>
+              <th>Сумма расходов</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in monthly_expenses %}
+              <tr>
+                <td>{{ row.month.strftime('%Y-%m') }}</td>
+                <td>{{ '%.2f'|format(row.total_amount) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if monthly_chart %}
+          <img class="chart" src="data:image/png;base64,{{ monthly_chart }}" alt="График помесячных расходов">
+        {% endif %}
+      {% endif %}
+    </div>
+
+    <div class="tab-content" id="content2">
+      {% if not category_expenses or category_expenses|length == 0 %}
+        <div class="empty">Нет данных для выбранного периода.</div>
+      {% else %}
+        <table>
+          <thead>
+            <tr>
+              <th>Категория</th>
+              <th>Сумма расходов</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in category_expenses %}
+              <tr>
+                <td>{{ row.category }}</td>
+                <td>{{ '%.2f'|format(row.total_amount) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% if category_chart %}
+          <img class="chart" src="data:image/png;base64,{{ category_chart }}" alt="Диаграмма по категориям">
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>

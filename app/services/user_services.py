@@ -40,6 +40,10 @@ def get_current_user(request: Request):
     return payload
 
 
+def check_user(user_id: str, db: Session):
+    return db.query(User).filter(User.id == user_id).first()
+
+
 def delete_user(user_id: int, db: Session):
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
