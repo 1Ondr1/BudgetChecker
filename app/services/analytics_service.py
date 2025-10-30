@@ -4,7 +4,7 @@ from datetime import datetime
 
 import matplotlib.pyplot as plt
 from sqlalchemy.orm import Session
-from sqlalchemy.sql import desc, func
+from sqlalchemy.sql import asc, desc, func
 
 from ..models.category import Category
 from ..models.expense import Expense
@@ -30,7 +30,7 @@ def get_monthly_expenses(user_id: str, month_from: str, month_to: str, db: Sessi
         expenses = expenses.filter(
             date_group <= datetime.strptime(month_to, "%Y-%m").date()
         )
-    expenses = expenses.order_by(desc("month")).all()
+    expenses = expenses.order_by(asc("month")).all()
     return expenses
 
 

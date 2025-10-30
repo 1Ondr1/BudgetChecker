@@ -6,12 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..config import templates
 from ..database import get_db
-from ..services.analytics_service import (
-    build_category_chart,
-    build_monthly_chart,
-    get_category_expenses,
-    get_monthly_expenses,
-)
+from ..services.analytics_service import get_category_expenses, get_monthly_expenses
 from ..services.user_services import get_current_user
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -37,17 +32,21 @@ def show_page(
         month_to=month_to,
         db=db,
     )
-    monthly_chart = build_monthly_chart(monthly_expenses)
-    category_chart = build_category_chart(category_expenses)
+    months = [e.month.strftime("%Y-%m") for e in monthly_expenses]
+    totals = [e.total_amount for e in monthly_expenses]
+    category_labels = [c.category for c in category_expenses]
+    category_values = [c.total_amount for c in category_expenses]
     return templates.TemplateResponse(
         "analytics.html",
         {
             "request": request,
-            "month_from": month_from,
-            "month_to": month_to,
+            "months": months,
+            "totals": totals,
+            "category_labels": category_labels,
+            "category_values": category_values,
             "monthly_expenses": monthly_expenses,
             "category_expenses": category_expenses,
-            "monthly_chart": monthly_chart,
-            "category_chart": category_chart,
+            "month_to": month_to,
+            "month_from": month_from,
         },
     )
