@@ -35,10 +35,11 @@
 
   <div class="controls">
     <form method="get" action="/analytics">
-      <input type="month" name="month_to" value="{{ month_to or '' }}" required>
       <input type="month" name="month_from" value="{{ month_from or '' }}" required>
+      <input type="month" name="month_to" value="{{ month_to or '' }}" required>
       <button type="submit">Показать</button>
       <a href="/analytics"><button type="button">Сбросить</button></a>
+      <a href="/expenses"><button type="button">Назад</button></a>
     </form>
   </div>
 

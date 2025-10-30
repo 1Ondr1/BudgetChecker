@@ -25,7 +25,7 @@ def show_expenses(
 ):
     if current_user == 401:
         return RedirectResponse(url="/auth/login", status_code=303)
-    categories, expenses = get_expenses(
+    expenses, categories = get_expenses(
         user_id=current_user["user_id"],
         date_from=date_from,
         date_to=date_to,

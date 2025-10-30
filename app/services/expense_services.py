@@ -6,7 +6,11 @@ from ..models.expense import Expense
 
 
 def get_expenses(
-    user_id: str, date_from: str, date_to: str, category: str, db: Session
+    user_id: str,
+    date_from: str | None,
+    date_to: str | None,
+    category: str | None,
+    db: Session,
 ):
     categories = db.query(Category).all()
     expenses = db.query(Expense).filter(Expense.user_id == user_id)
@@ -17,7 +21,7 @@ def get_expenses(
     if category:
         expenses = expenses.filter(Expense.category.has(Category.name == category))
     expenses = expenses.order_by(desc(Expense.date)).all()
-    return categories, expenses
+    return expenses, categories
 
 
 def add_new_expense(

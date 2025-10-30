@@ -40,13 +40,14 @@
       <h1>Мои расходы</h1>
       <div class="totals">
         <span class="pill">
-          Итого: {{ expenses|sum(attribute='amount') if expenses else 0 }} ₽
+          Итого: {{ expenses|sum(attribute='amount') if expenses else 0 }} ₴
         </span>
       </div>
     </div>
 
     <div class="card">
       <a href="/analytics" class="btn">Аналитика</a>
+      <a href="/forecast" class="btn">Прогнозы</a>
     </div>
 
     <!-- ФИЛЬТРЫ -->
