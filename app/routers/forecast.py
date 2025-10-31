@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import Depends, Query
 from fastapi.requests import Request
 from fastapi.responses import HTMLResponse
@@ -6,7 +8,6 @@ from sqlalchemy.orm import Session
 
 from ..config import templates
 from ..database import get_db
-from ..services.analytics_service import get_monthly_expenses
 from ..services.forecast_service import get_linear_forecast
 from ..services.user_services import get_current_user
 
@@ -28,21 +29,21 @@ def linear_forecast(
     predict_months: int = Query(1),
     db: Session = Depends(get_db),
 ):
-    monthly_expenses = get_monthly_expenses(
-        user_id=current_user["user_id"],
-        month_from=month_from,
-        month_to=month_to,
-        db=db,
-    )
-    months = [e.month.strftime("%Y-%m") for e in monthly_expenses]
-    totals = [e.total_amount for e in monthly_expenses]
     forecast = get_linear_forecast(
         user_id=current_user["user_id"],
         month_from=month_from,
         month_to=month_to,
-        db=db,
         predict_months=predict_months,
+        db=db,
     )
+    months = []
+    actual_values = []
+    linear_predicted = []
+    for val in forecast:
+        months.append(datetime.strftime(val.month, "%Y-%m"))
+        actual_values.append(val.total)
+        linear_predicted.append(val.predicted)
+    print(actual_values)
     return templates.TemplateResponse(
         "forecast.html",
         {
@@ -50,5 +51,6 @@ def linear_forecast(
             "months": months,
             "forecast_linear": forecast,
             "actual_values": actual_values,
+            "linear_predicted": linear_predicted,
         },
     )

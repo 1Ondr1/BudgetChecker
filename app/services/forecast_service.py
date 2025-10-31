@@ -1,6 +1,3 @@
-# from fastapi import Depends
-
-
 from datetime import datetime
 
 import numpy as np
@@ -11,7 +8,7 @@ from sklearn.model_selection import train_test_split
 from sqlalchemy.orm import Session
 
 from ..models.expense import Expense
-from ..schemes.forecast import Forecast, MonthlyForecast
+from ..schemes.forecast import Forecast
 from ..services.analytics_service import get_monthly_expenses
 
 
@@ -45,13 +42,31 @@ def get_linear_forecast(
     model.fit(x_train, y_train)
     future_x = np.arange(len(df), len(df) + predict_months).reshape(-1, 1)
     prediction = model.predict(future_x)
-    # TODO Сделать нормальный вывод данных через схему Forecast
-    predicted_expenses = [
-        Forecast(val.month, val.total_amount, None) for val in expenses
-    ]
-    predicted_expenses.append(Forecast(predict_months))
-    print(prediction)
-    return prediction
+    predicted_expenses = []
+    current_month = datetime.strptime(month_to, "%Y-%m") + relativedelta(months=1)
+    # TODO Сделать запрос в бд на все затрати за период + прогнозированные для проверки и добавления значений, если они есть
+    expenses_dict = dict(expenses)
+    print(current_month)
+    print(list(expenses_dict.keys())[-1])
+    for month, total in df.iterrows():
+        predicted_expenses.append(
+            Forecast(month=month.to_pydatetime(), total=total, predicted=None)
+        )
+    for value in prediction:
+        if current_month in list(expenses_dict.keys()):
+            predicted_expenses.append(
+                Forecast(
+                    month=current_month,
+                    total=expenses_dict[current_month],
+                    predicted=value,
+                )
+            )
+        else:
+            predicted_expenses.append(
+                Forecast(month=current_month, total=None, predicted=value)
+            )
+        current_month += relativedelta(months=1)
+    return predicted_expenses
 
 
 def monthly_forecast(
@@ -66,7 +81,7 @@ def monthly_forecast(
     forecast = []
     for val in range(window):
         forecast.append(
-            MonthlyForecast(
+            Forecast(
                 month=expenses[val].month,
                 total="{:.2f}".format(expenses[val].total_amount),
             )
@@ -74,7 +89,7 @@ def monthly_forecast(
         predict += expenses[val].total_amount
     for i in range(window, len(expenses)):
         forecast.append(
-            MonthlyForecast(
+            Forecast(
                 month=expenses[i].month,
                 total="{:.2f}".format(expenses[i].total_amount),
                 predicted="{:.2f}".format(predict / window),
@@ -87,7 +102,7 @@ def monthly_forecast(
         print(predict)
         print(last_amount)
         forecast.append(
-            MonthlyForecast(
+            Forecast(
                 month=month, total=None, predicted="{:.2f}".format(predict / window)
             )
         )

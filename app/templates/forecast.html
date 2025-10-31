@@ -69,7 +69,11 @@
           {% for e in forecast_linear %}
             <tr>
               <td>{{ e.month }}</td>
-              <td>{{ e.actual or '-' }}</td>
+              {% if e.total %}
+                <td>{{ '%.2f'|format(e.total) }}</td>
+              {% else %}
+                <td>{{ '-' }}</td>
+              {% endif %}
               <td>{{ e.predicted or '-' }}</td>
             </tr>
           {% endfor %}
@@ -99,6 +103,22 @@
       tab.classList.add('active');
       document.getElementById(tab.dataset.tab).classList.add('active');
     }));
+
+    // Примерные данные для графика
+    const labels = {{ months | tojson }};
+    const actual = {{ actual_values | tojson }};
+    const linear = {{ linear_predicted | tojson }};
+
+    if (labels && labels.length > 0) {
+      new Chart(document.getElementById('chartLinear'), {
+        type: 'line',
+        data: { labels, datasets: [
+          { label:'Фактические', data:actual, borderColor:'#16a34a' },
+          { label:'Прогноз (Linear)', data:linear, borderColor:'#2563eb', borderDash:[4,4] }
+        ] },
+        options:{ plugins:{ legend:{ position:'bottom' } } }
+      });
+    }
   </script>
 </body>
 </html>
