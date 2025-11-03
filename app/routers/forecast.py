@@ -19,6 +19,7 @@ def show_page(request: Request):
     return templates.TemplateResponse("forecast.html", {"request": request})
 
 
+# TODO Начать делать следующий алгоритм и сделать нормальные данные для рассходов в бд
 @router.get("/linear", response_class=HTMLResponse)
 def linear_forecast(
     request: Request,
@@ -34,6 +35,7 @@ def linear_forecast(
         month_from=month_from,
         month_to=month_to,
         predict_months=predict_months,
+        window=window,
         db=db,
     )
     months = []
@@ -43,7 +45,6 @@ def linear_forecast(
         months.append(datetime.strftime(val.month, "%Y-%m"))
         actual_values.append(val.total)
         linear_predicted.append(val.predicted)
-    print(actual_values)
     return templates.TemplateResponse(
         "forecast.html",
         {
@@ -52,5 +53,9 @@ def linear_forecast(
             "forecast_linear": forecast,
             "actual_values": actual_values,
             "linear_predicted": linear_predicted,
+            "month_from": month_from,
+            "month_to": month_to,
+            "predict_months": predict_months,
+            "window": window,
         },
     )

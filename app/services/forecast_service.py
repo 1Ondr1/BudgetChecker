@@ -4,27 +4,35 @@ import numpy as np
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 from sklearn.linear_model import LinearRegression
-from sklearn.model_selection import train_test_split
 from sqlalchemy.orm import Session
+from sqlalchemy.sql import asc
 
 from ..models.expense import Expense
 from ..schemes.forecast import Forecast
 from ..services.analytics_service import get_monthly_expenses
 
 
-def data_prepearing(
-    user_id: int, month_from: str, month_to: str, predict_months: int, db: Session
-):
-    expenses = get_monthly_expenses(
-        user_id=user_id, month_from=month_from, month_to=month_to, db=db
+def get_expenses_by_period(user_id: int, month_from: str, month_to: str, db: Session):
+    expenses = (
+        db.query()
+        .filter(
+            Expense.user_id == user_id,
+            Expense.date >= month_from,
+            Expense.date <= month_to,
+        )
+        .order_by(asc(Expense.date))
+        .all()
     )
-    months = [val.month.strftime("%Y-%m") for val in expenses]
-    amounts = [val.total_amount for val in expenses]
-    return months, amounts
+    return expenses
 
 
 def get_linear_forecast(
-    user_id: int, month_from: str, month_to: str, predict_months: int, db: Session
+    user_id: int,
+    month_from: str,
+    month_to: str,
+    predict_months: int,
+    window: int,
+    db: Session,
 ):
     expenses = get_monthly_expenses(
         user_id=user_id, month_from=month_from, month_to=month_to, db=db
@@ -33,39 +41,56 @@ def get_linear_forecast(
     df["month"] = pd.to_datetime(df["month"])
     df = df.set_index("month").sort_index()
     df = df.asfreq("MS", fill_value=0)
-    x = np.arange(len(df)).reshape(-1, 1)
-    y = df["total"].values
-    x_train, x_test, y_train, y_test = train_test_split(
-        x, y, train_size=0.2, shuffle=False
-    )
+    df["smooth"] = df["total"].rolling(window=3, min_periods=1).mean()
+    total = df["smooth"].values
+    if len(df) <= window:
+        window = min(window, len(df) - 1)
+    x, y = [], []
+    for i in range(len(df) - window):
+        x.append(total[i : i + window])
+        y.append(total[i + window])
+    x, y = np.array(x), np.array(y)
     model = LinearRegression()
-    model.fit(x_train, y_train)
-    future_x = np.arange(len(df), len(df) + predict_months).reshape(-1, 1)
-    prediction = model.predict(future_x)
+    model.fit(x, y)
+    prediction = []
+    total_copy = total.copy()
+    for _ in range(predict_months):
+        future_x = np.array(total_copy[-window:]).reshape(1, -1)
+        temp_predict = model.predict(future_x)
+        if temp_predict < 0:
+            temp_predict = 0
+        prediction = np.append(prediction, temp_predict)
+        total_copy = np.append(total_copy, temp_predict)
+    expenses_period = get_monthly_expenses(
+        user_id=user_id,
+        month_from=month_from,
+        month_to=datetime.strftime(
+            datetime.strptime(month_to, "%Y-%m") + relativedelta(months=predict_months),
+            "%Y-%m",
+        ),
+        db=db,
+    )
+    expenses_dict = {k.date(): v for k, v in expenses_period}
     predicted_expenses = []
-    current_month = datetime.strptime(month_to, "%Y-%m") + relativedelta(months=1)
-    # TODO Сделать запрос в бд на все затрати за период + прогнозированные для проверки и добавления значений, если они есть
-    expenses_dict = dict(expenses)
-    print(current_month)
-    print(list(expenses_dict.keys())[-1])
-    for month, total in df.iterrows():
+    for month, row in df.iterrows():
         predicted_expenses.append(
-            Forecast(month=month.to_pydatetime(), total=total, predicted=None)
+            Forecast(
+                month=month.to_pydatetime(), total=float(row["total"]), predicted=None
+            )
         )
+
+    current_month = datetime.strptime(month_to, "%Y-%m") + relativedelta(months=1)
     for value in prediction:
-        if current_month in list(expenses_dict.keys()):
-            predicted_expenses.append(
-                Forecast(
-                    month=current_month,
-                    total=expenses_dict[current_month],
-                    predicted=value,
-                )
+        total_value = expenses_dict.get(current_month.date())
+        predicted_expenses.append(
+            Forecast(
+                month=current_month,
+                total=float(total_value) if total_value else None,
+                predicted=float(value),
             )
-        else:
-            predicted_expenses.append(
-                Forecast(month=current_month, total=None, predicted=value)
-            )
+        )
         current_month += relativedelta(months=1)
+
     return predicted_expenses
 
 
