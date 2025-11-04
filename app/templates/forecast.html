@@ -35,25 +35,54 @@
 
   <!-- 🔹 Линейная регрессия -->
   <div id="linear" class="section active">
-    <form method="get" action="/forecast/linear">
+    <form id="linearForm">
       <fieldset>
         <legend>📅 Параметры прогнозирования (Линейная регрессия)</legend>
         <div>
           <label>Период с:</label>
-          <input type="month" name="month_from" value="{{ month_from or '' }}" required>
+          <input type="month" name="month_from" required>
           <label>по:</label>
-          <input type="month" name="month_to" value="{{ month_to or '' }}" required>
+          <input type="month" name="month_to" required>
+        </div>
+        <div>
+          <label>Прогнозировать на:</label>
+          <input type="number" name="predict_months" value="1" min="1" max="12"> мес.
+        </div>
+        <div>
+          <button type="submit">Построить прогноз</button>
+          <a href="/forecast"><button type="button">Сбросить</button></a>
+          <a href="/expenses"><button type="button">Назад</button></a>
+        </div>
+      </fieldset>
+    </form>
+
+    <canvas id="chartLinear"></canvas>
+    <table>
+      <thead><tr><th>Месяц</th><th>Фактические</th><th>Прогноз</th></tr></thead>
+      <tbody id="linearTableBody"></tbody>
+    </table>
+  </div>
+
+  <!-- 🔹 ARIMA -->
+  <div id="arima" class="section">
+    <form id="arimaForm">
+      <fieldset>
+        <legend>📅 Параметры прогнозирования (ARIMA)</legend>
+        <div>
+          <label>Период с:</label>
+          <input type="month" name="month_from" required>
+          <label>по:</label>
+          <input type="month" name="month_to" required>
+        </div>
+        <div>
+          <label>Прогнозировать на:</label>
+          <input type="number" name="predict_months" value="1" min="1" max="12"> мес.
         </div>
         <div>
           <label>Окно сглаживания:</label>
-          <select name="window">
-            <option value="3" {% if window==3 %}selected{% endif %}>3</option>
-            <option value="6" {% if window==6 %}selected{% endif %}>6</option>
-            <option value="12" {% if window==12 %}selected{% endif %}>12</option>
-          </select>
-          <label>Прогнозировать на:</label>
-          <input type="number" name="predict_months" value="{{ predict_months or 1 }}" min="1" max="12"> мес.
+          <input type="number" name="window" value="6" min="2" max="12"> мес.
         </div>
+
         <div>
           <button type="submit">Построить прогноз</button>
           <a href="/forecast"><button type="button">Сбросить</button></a>
@@ -61,69 +90,104 @@
       </fieldset>
     </form>
 
-    {% if months %}
-      <canvas id="chartLinear"></canvas>
-      <table>
-        <thead><tr><th>Месяц</th><th>Фактические</th><th>Прогноз</th></tr></thead>
-        <tbody>
-          {% for e in forecast_linear %}
-            <tr>
-              <td>{{ e.month.strftime('%Y-%m') }}</td>
-              {% if e.total or e.total == 0 %}
-                <td>{{ '%.2f'|format(e.total) }}</td>
-              {% else %}
-                <td>{{ '-' }}</td>
-                {% endif %}
-                {% if e.predicted or e.predicted == 0 %}
-                  <td>{{ '%.2f'|format(e.predicted) or '-' }}</td>
-                {% else %}
-                  <td>{{ '-' }}</td>
-                {% endif %}
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% endif %}
+    <canvas id="chartArima"></canvas>
+    <table>
+      <thead><tr><th>Месяц</th><th>Фактические</th><th>Прогноз</th></tr></thead>
+      <tbody id="arimaTableBody"></tbody>
+    </table>
   </div>
 
-  <!-- 🔹 Остальные методы (пока пустые) -->
-  <div id="arima" class="section">
-    <p style="text-align:center;">Модуль ARIMA будет добавлен позже</p>
-  </div>
   <div id="mlp" class="section">
     <p style="text-align:center;">Модуль MLP будет добавлен позже</p>
   </div>
+
   <div id="compare" class="section">
     <p style="text-align:center;">Сравнение методов будет добавлено после реализации всех моделей</p>
   </div>
-  {% if months %}
-    <script>
-      // Переключение вкладок
-      const tabs = document.querySelectorAll('.tab');
-      const sections = document.querySelectorAll('.section');
-      tabs.forEach(tab => tab.addEventListener('click', () => {
-        tabs.forEach(t => t.classList.remove('active'));
-        sections.forEach(s => s.classList.remove('active'));
-        tab.classList.add('active');
-        document.getElementById(tab.dataset.tab).classList.add('active');
-      }));
 
-      // Примерные данные для графика
-      const labels = {{ months | tojson }};
-      const actual = {{ actual_values | tojson }};
-      const linear = {{ linear_predicted | tojson }};
+  <script>
+    // 🔹 Переключение вкладок
+    const tabs = document.querySelectorAll('.tab');
+    const sections = document.querySelectorAll('.section');
+    tabs.forEach(tab => tab.addEventListener('click', () => {
+      tabs.forEach(t => t.classList.remove('active'));
+      sections.forEach(s => s.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById(tab.dataset.tab).classList.add('active');
+    }));
 
-      if (labels && labels.length > 0) {
-        new Chart(document.getElementById('chartLinear'), {
-          type: 'line',
-          data: { labels, datasets: [
-            { label:'Фактические', data:actual, borderColor:'#16a34a' },
-            { label:'Прогноз (Linear)', data:linear, borderColor:'#2563eb', borderDash:[4,4] }
-          ] },
-          options:{ plugins:{ legend:{ position:'bottom' } } }
-        });
+    let chartLinear = null;
+    let chartArima = null;
+
+    // 🔹 Линейная регрессия
+    const linearForm = document.querySelector('#linearForm');
+    linearForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const params = new URLSearchParams(new FormData(linearForm));
+      const res = await fetch(`/forecast/linear?${params.toString()}`);
+      const data = await res.json();
+      if (data.error) return alert(data.error);
+
+      const tbody = document.querySelector("#linearTableBody");
+      tbody.innerHTML = "";
+      data.forecast_linear.forEach(row => {
+        tbody.innerHTML += `
+          <tr>
+            <td>${row.month}</td>
+            <td>${row.total != null ? row.total.toFixed(0) : '-'}</td>
+            <td>${row.predicted != null ? row.predicted.toFixed(0) : '-'}</td>
+          </tr>`;
+      });
+
+      if (chartLinear) chartLinear.destroy();
+      chartLinear = new Chart(document.getElementById('chartLinear'), {
+        type: 'line',
+        data: {
+          labels: data.months,
+          datasets: [
+            { label:'Фактические', data:data.actual_values, borderColor:'#16a34a' },
+            { label:'Прогноз (Linear)', data:data.linear_predicted, borderColor:'#2563eb', borderDash:[4,4] }
+          ]
+        },
+        options:{ plugins:{ legend:{ position:'bottom' } } }
+      });
+    });
+
+    // 🔹 ARIMA
+    const arimaForm = document.querySelector('#arimaForm');
+    arimaForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const params = new URLSearchParams(new FormData(arimaForm));
+      const res = await fetch(`/forecast/arima?${params.toString()}`);
+      const data = await res.json();
+      if (data.error) return alert(data.error);
+      if (data.used_fallback) {
+        alert("⚠ Модель ARIMA не смогла обучиться, используется усреднённый прогноз.");
       }
-    </script>
-  {% endif %}
+      const tbody = document.querySelector("#arimaTableBody");
+      tbody.innerHTML = "";
+      data.forecast_arima.forEach(row => {
+        tbody.innerHTML += `
+          <tr>
+            <td>${row.month}</td>
+            <td>${row.total != null ? row.total.toFixed(0) : '-'}</td>
+            <td>${row.predicted != null ? row.predicted.toFixed(0) : '-'}</td>
+          </tr>`;
+      });
+
+      if (chartArima) chartArima.destroy();
+      chartArima = new Chart(document.getElementById('chartArima'), {
+        type: 'line',
+        data: {
+          labels: data.months,
+          datasets: [
+            { label:'Фактические', data:data.actual_values, borderColor:'#16a34a' },
+            { label:'Прогноз (ARIMA)', data:data.arima_predicted, borderColor:'#9333ea', borderDash:[4,4] }
+          ]
+        },
+        options:{ plugins:{ legend:{ position:'bottom' } } }
+      });
+    });
+  </script>
 </body>
 </html>
