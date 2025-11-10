@@ -82,7 +82,6 @@
           <label>Окно сглаживания:</label>
           <input type="number" name="window" value="6" min="2" max="12"> мес.
         </div>
-
         <div>
           <button type="submit">Построить прогноз</button>
           <a href="/forecast"><button type="button">Сбросить</button></a>
@@ -97,12 +96,38 @@
     </table>
   </div>
 
+  <!-- 🔹 MLP -->
   <div id="mlp" class="section">
-    <p style="text-align:center;">Модуль MLP будет добавлен позже</p>
+    <form id="mlpForm">
+      <fieldset>
+        <legend>📅 Параметры прогнозирования (MLP — нейросеть)</legend>
+        <div>
+          <label>Период с:</label>
+          <input type="month" name="month_from" required>
+          <label>по:</label>
+          <input type="month" name="month_to" required>
+        </div>
+        <div>
+          <label>Прогнозировать на:</label>
+          <input type="number" name="predict_months" value="1" min="1" max="12"> мес.
+        </div>
+        <div>
+          <button type="submit">Построить прогноз</button>
+          <a href="/forecast"><button type="button">Сбросить</button></a>
+        </div>
+      </fieldset>
+    </form>
+
+    <canvas id="chartMLP"></canvas>
+    <table>
+      <thead><tr><th>Месяц</th><th>Фактические</th><th>Прогноз</th></tr></thead>
+      <tbody id="mlpTableBody"></tbody>
+    </table>
   </div>
 
+  <!-- 🔹 Сравнение -->
   <div id="compare" class="section">
-    <p style="text-align:center;">Сравнение методов будет добавлено после реализации всех моделей</p>
+    <p style="text-align:center;">Сравнение моделей будет реализовано после внедрения всех алгоритмов</p>
   </div>
 
   <script>
@@ -118,6 +143,7 @@
 
     let chartLinear = null;
     let chartArima = null;
+    let chartMLP = null;
 
     // 🔹 Линейная регрессия
     const linearForm = document.querySelector('#linearForm');
@@ -161,9 +187,8 @@
       const res = await fetch(`/forecast/arima?${params.toString()}`);
       const data = await res.json();
       if (data.error) return alert(data.error);
-      if (data.used_fallback) {
-        alert("⚠ Модель ARIMA не смогла обучиться, используется усреднённый прогноз.");
-      }
+      if (data.used_fallback) alert("⚠ Модель ARIMA не смогла обучиться, используется усреднённый прогноз.");
+
       const tbody = document.querySelector("#arimaTableBody");
       tbody.innerHTML = "";
       data.forecast_arima.forEach(row => {
@@ -183,6 +208,40 @@
           datasets: [
             { label:'Фактические', data:data.actual_values, borderColor:'#16a34a' },
             { label:'Прогноз (ARIMA)', data:data.arima_predicted, borderColor:'#9333ea', borderDash:[4,4] }
+          ]
+        },
+        options:{ plugins:{ legend:{ position:'bottom' } } }
+      });
+    });
+
+    // 🔹 MLP
+    const mlpForm = document.querySelector('#mlpForm');
+    mlpForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const params = new URLSearchParams(new FormData(mlpForm));
+      const res = await fetch(`/forecast/mlp?${params.toString()}`);
+      const data = await res.json();
+      if (data.error) return alert(data.error);
+
+      const tbody = document.querySelector("#mlpTableBody");
+      tbody.innerHTML = "";
+      data.forecast_mlp.forEach(row => {
+        tbody.innerHTML += `
+          <tr>
+            <td>${row.month}</td>
+            <td>${row.total != null ? row.total.toFixed(0) : '-'}</td>
+            <td>${row.predicted != null ? row.predicted.toFixed(0) : '-'}</td>
+          </tr>`;
+      });
+
+      if (chartMLP) chartMLP.destroy();
+      chartMLP = new Chart(document.getElementById('chartMLP'), {
+        type: 'line',
+        data: {
+          labels: data.months,
+          datasets: [
+            { label:'Фактические', data:data.actual_values, borderColor:'#16a34a' },
+            { label:'Прогноз (MLP)', data:data.mlp_predicted, borderColor:'#f59e0b', borderDash:[4,4] }
           ]
         },
         options:{ plugins:{ legend:{ position:'bottom' } } }

@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 from sklearn.linear_model import LinearRegression
+from sklearn.neural_network import MLPRegressor
+from sklearn.preprocessing import MinMaxScaler
 from sqlalchemy.orm import Session
 from statsmodels.tsa.arima.model import ARIMA
 
@@ -109,7 +111,7 @@ def get_arima_forecast(
     df = pd.DataFrame(expenses, columns=["months", "total"])
     df["months"] = pd.to_datetime(df["months"])
     df = df.set_index("months").sort_index().asfreq("MS", fill_value=0)
-    df["smooth"] = df["total"].rolling(window=3, min_periods=1).mean()
+    df["smooth"] = df["total"].rolling(window=max(2, window // 2), min_periods=1).mean()
 
     order_candidates = [(window, 1, 1), (window, 1, 2)]
     fitted = False
@@ -117,7 +119,7 @@ def get_arima_forecast(
 
     for order in order_candidates:
         try:
-            model = ARIMA(df["total"], order=order, trend="n")
+            model = ARIMA(df["smooth"], order=order, trend="n")
             model_fit = model.fit()
             fitted = True
             break
@@ -170,6 +172,82 @@ def get_arima_forecast(
         current_month += relativedelta(months=1)
 
     return predicted_expenses, used_fallback
+
+
+def get_mlp_forecast(
+    user_id: int,
+    month_from: str,
+    month_to: str,
+    predicted_months: int,
+    db: Session,
+):
+    expenses = get_monthly_expenses(
+        user_id=user_id, month_from=month_from, month_to=month_to, db=db
+    )
+    df = pd.DataFrame(expenses, columns=["month", "total"])
+    df["month"] = pd.to_datetime(df["month"])
+    df = df.set_index("month").asfreq("MS", fill_value=0)
+    scaler = MinMaxScaler()
+    values_scaled = scaler.fit_transform(df["total"].values.reshape(-1, 1)).flatten()
+    values = np.array(values_scaled, dtype=float)
+    values = np.nan_to_num(values, nan=0.0)
+    window = min(max(3, len(values) // 4), 8)
+
+    x, y = [], []
+    for i in range(len(values) - window):
+        seq = values[i : i + window]
+        if len(seq) == window:
+            x.append(seq)
+            y.append(values[i + window])
+    x, y = np.array(x), np.array(y)
+
+    model = MLPRegressor(
+        hidden_layer_sizes=(128, 64, 32), max_iter=2000, alpha=0.0005, random_state=42
+    )
+    model.fit(x, y)
+
+    prediction = []
+    for _ in range(predicted_months):
+        seq = values_scaled[-window:]
+        next_pred = model.predict(seq.reshape(1, -1))
+        prediction.append(next_pred[0])
+        values_scaled = np.append(values_scaled, next_pred)
+    prediction = scaler.inverse_transform(np.array(prediction).reshape(-1, 1)).flatten()
+
+    predicted_expenses = []
+
+    expenses_period = get_monthly_expenses(
+        user_id=user_id,
+        month_from=month_from,
+        month_to=datetime.strftime(
+            datetime.strptime(month_to, "%Y-%m")
+            + relativedelta(months=predicted_months),
+            "%Y-%m",
+        ),
+        db=db,
+    )
+    expenses_dict = {k.date(): v for k, v in expenses_period}
+    for month, value in df.iterrows():
+        predicted_expenses.append(
+            {
+                "month": datetime.strftime(month, "%Y-%m"),
+                "total": value["total"],
+                "predicted": None,
+            }
+        )
+    current_month = datetime.strptime(month_to, "%Y-%m") + relativedelta(months=1)
+    for value in prediction:
+        total_value = expenses_dict.get(current_month.date())
+        predicted_expenses.append(
+            {
+                "month": datetime.strftime(current_month, "%Y-%m"),
+                "total": float(total_value) if total_value else None,
+                "predicted": float(value),
+            }
+        )
+        current_month += relativedelta(months=1)
+
+    return predicted_expenses
 
 
 def monthly_forecast(

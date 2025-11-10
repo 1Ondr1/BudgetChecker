@@ -8,7 +8,11 @@ from sqlalchemy.orm import Session
 
 from ..config import templates
 from ..database import get_db
-from ..services.forecast_service import get_arima_forecast, get_linear_forecast
+from ..services.forecast_service import (
+    get_arima_forecast,
+    get_linear_forecast,
+    get_mlp_forecast,
+)
 from ..services.user_services import get_current_user
 
 router = APIRouter(prefix="/forecast", tags=["forecast"])
@@ -105,6 +109,48 @@ def arima_forecast(
             "actual_values": actual_values,
             "arima_predicted": arima_predicted,
             "used_fallback": used_fallback,
+            "error": None,
+        }
+    )
+
+
+@router.get("/mlp")
+def mlp_forecast(
+    current_user: Session = Depends(get_current_user),
+    month_from: str = Query(None),
+    month_to: str = Query(None),
+    window: int = Query(None),
+    predict_months: int = Query(1),
+    db: Session = Depends(get_db),
+):
+    if month_from and month_to:
+        diff_months = (
+            datetime.strptime(month_to, "%Y-%m")
+            - datetime.strptime(month_from, "%Y-%m")
+        ).days // 30
+        if diff_months < 6:
+            return JSONResponse(
+                {
+                    "error": "Період повинен бути не менше 6 місяців для побудови прогнозу.",
+                },
+                status_code=400,
+            )
+    forecast = get_mlp_forecast(
+        user_id=current_user["user_id"],
+        month_from=month_from,
+        month_to=month_to,
+        predicted_months=predict_months,
+        db=db,
+    )
+    months = [f["month"] for f in forecast]
+    actual_values = [f["total"] for f in forecast]
+    mlp_predicted = [f["predicted"] for f in forecast]
+    return JSONResponse(
+        {
+            "months": months,
+            "forecast_mlp": forecast,
+            "actual_values": actual_values,
+            "mlp_predicted": mlp_predicted,
             "error": None,
         }
     )
