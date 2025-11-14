@@ -5,86 +5,68 @@ import pandas as pd
 from dateutil.relativedelta import relativedelta
 from sklearn.linear_model import LinearRegression
 from sklearn.neural_network import MLPRegressor
-from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
 from sqlalchemy.orm import Session
 from statsmodels.tsa.arima.model import ARIMA
 
-from ..models.expense import Expense
-from ..schemes.forecast import Forecast
 from ..services.analytics_service import get_monthly_expenses
 
 
-def get_linear_forecast(
-    user_id: int,
-    month_from: str,
-    month_to: str,
-    predicted_months: int,
-    window: int,
-    db: Session,
-):
+def preprocess_expenses(user_id, month_from, month_to, db: Session):
+    """Единая подготовка данных — формат результата не изменяем."""
     expenses = get_monthly_expenses(
         user_id=user_id, month_from=month_from, month_to=month_to, db=db
     )
     if not expenses:
-        return []
+        return None
+
     df = pd.DataFrame(expenses, columns=["month", "total"])
     df["month"] = pd.to_datetime(df["month"])
     df = df.set_index("month").sort_index()
+
     df = df.asfreq("MS", fill_value=0)
-    df["smooth"] = df["total"].rolling(window=3, min_periods=1).mean()
-    total = df["smooth"].values
-    if len(df) < window + 1:
-        return []
-    if len(df) <= window:
-        window = min(window, len(df) - 1)
-    x, y = [], []
-    for i in range(len(df) - window):
-        x.append(total[i : i + window])
-        y.append(total[i + window])
-    x, y = np.array(x), np.array(y)
-    model = LinearRegression()
-    model.fit(x, y)
-    prediction = []
-    total_copy = total.copy()
-    avg = np.mean(total)
-    std = np.std(total)
-    for _ in range(predicted_months):
-        future_x = np.array(total_copy[-window:]).reshape(1, -1)
-        temp_predict = model.predict(future_x)
-        upper_limit = avg + 2.5 * std
-        lower_limit = max(0, avg - 2.5 * std)
-        temp_predict = min(max(temp_predict, lower_limit), upper_limit)
-        temp_predict *= np.random.uniform(0.95, 1.05)
-        prediction = np.append(prediction, temp_predict)
-        total_copy = np.append(total_copy, temp_predict)
+
+    # EMA сглаживание (во всех моделях одинаковое)
+    # df["smooth"] = df["total"].ewm(alpha=0.8).mean()
+    df["smooth"] = (
+        0.5 * df["total"].ewm(alpha=0.6, adjust=False).mean()
+        + 0.5 * df["total"].rolling(window=3, min_periods=1).mean()
+    )
+
+    avg = df["smooth"].mean()
+    std = df["smooth"].std()
+
+    return df, avg, std
+
+
+def _build_result(month_to, predicted_months, prediction, db, user_id):
+    """Формирование результата — одинаково для всех моделей."""
+    predicted_expenses = []
+    month_from_next = (
+        datetime.strptime(month_to, "%Y-%m") + relativedelta(months=1)
+    ).strftime("%Y-%m")
     expenses_period = get_monthly_expenses(
         user_id=user_id,
-        month_from=month_from,
-        month_to=datetime.strftime(
+        month_from=month_from_next,
+        month_to=(
             datetime.strptime(month_to, "%Y-%m")
-            + relativedelta(months=predicted_months),
-            "%Y-%m",
-        ),
+            + relativedelta(months=predicted_months)
+        ).strftime("%Y-%m"),
         db=db,
     )
     expenses_dict = {k.date(): v for k, v in expenses_period}
-    predicted_expenses = []
-    for month, row in df.iterrows():
-        predicted_expenses.append(
-            {
-                "month": datetime.strftime(month.to_pydatetime(), "%Y-%m"),
-                "total": float(row["total"]),
-                "predicted": None,
-            }
-        )
 
     current_month = datetime.strptime(month_to, "%Y-%m") + relativedelta(months=1)
+
     for value in prediction:
-        total_value = expenses_dict.get(current_month.date())
         predicted_expenses.append(
             {
-                "month": datetime.strftime(current_month, "%Y-%m"),
-                "total": float(total_value) if total_value else None,
+                "month": current_month.strftime("%Y-%m"),
+                "total": (
+                    float(expenses_dict.get(current_month.date()))
+                    if expenses_dict.get(current_month.date()) is not None
+                    else None
+                ),
                 "predicted": float(value),
             }
         )
@@ -93,204 +75,138 @@ def get_linear_forecast(
     return predicted_expenses
 
 
-def get_arima_forecast(
-    user_id: int,
-    month_from: str,
-    month_to: str,
-    predicted_months: int,
-    window: int,
-    db: Session,
-):
-    expenses = get_monthly_expenses(
-        user_id=user_id, month_from=month_from, month_to=month_to, db=db
-    )
+def get_linear_forecast(user_id, month_from, month_to, predicted_months, db: Session):
+    df, avg, std = preprocess_expenses(user_id, month_from, month_to, db)
+    if df is None:
+        return []
 
-    if not expenses:
+    values = df["smooth"].values
+    n = len(values)
+
+    if n < 3:
+        return _build_result(
+            month_to, predicted_months, [avg] * predicted_months, db, user_id
+        )
+
+    if n < 12:
+        window = n - 1
+    elif n < 24:
+        window = 6
+    else:
+        window = 12
+
+    X, y = [], []
+    for i in range(n - window):
+        X.append(values[i : i + window])
+        y.append(values[i + window])
+
+    X, y = np.array(X), np.array(y)
+
+    model = LinearRegression()
+    model.fit(X, y)
+
+    prediction = []
+    seq = values.copy()
+
+    for _ in range(predicted_months):
+        next_val = model.predict(seq[-window:].reshape(1, -1))[0]
+        prediction.append(next_val)
+        seq = np.append(seq, next_val)
+
+    return _build_result(month_to, predicted_months, prediction, db, user_id)
+
+
+def get_arima_forecast(user_id, month_from, month_to, predicted_months, db: Session):
+    df, avg, std = preprocess_expenses(user_id, month_from, month_to, db)
+    if df is None:
         return [], True
 
-    df = pd.DataFrame(expenses, columns=["months", "total"])
-    df["months"] = pd.to_datetime(df["months"])
-    df = df.set_index("months").sort_index().asfreq("MS", fill_value=0)
-    df["smooth"] = df["total"].rolling(window=max(2, window // 2), min_periods=1).mean()
+    series = df["total"]
 
-    order_candidates = [(window, 1, 1), (window, 1, 2)]
-    fitted = False
+    order_candidates = [
+        (1, 1, 1),
+        (2, 1, 1),
+        (1, 1, 2),
+        (3, 1, 2),
+        (3, 1, 1),
+    ]
+
+    model_fit = None
     used_fallback = False
 
     for order in order_candidates:
         try:
-            model = ARIMA(df["smooth"], order=order, trend="n")
+            model = ARIMA(series, order=order)
             model_fit = model.fit()
-            fitted = True
             break
         except Exception:
             continue
 
-    if fitted:
-        prediction = model_fit.forecast(steps=predicted_months)
-        prediction = np.clip(
-            prediction,
-            df["total"].min() * 0.9,
-            df["total"].max() * 1.1,
-        )
-    else:
+    if model_fit is None:
         used_fallback = True
-        mean_value = float(df["total"].mean())
-        prediction = [mean_value] * predicted_months
+        prediction = [avg] * predicted_months
+    else:
+        prediction = model_fit.forecast(predicted_months)
 
-    predicted_expenses = []
-
-    expenses_period = get_monthly_expenses(
-        user_id=user_id,
-        month_from=month_from,
-        month_to=datetime.strftime(
-            datetime.strptime(month_to, "%Y-%m")
-            + relativedelta(months=predicted_months),
-            "%Y-%m",
-        ),
-        db=db,
+    return (
+        _build_result(month_to, predicted_months, prediction, db, user_id),
+        used_fallback,
     )
-    expenses_dict = {k.date(): v for k, v in expenses_period}
-    for month, value in df.iterrows():
-        predicted_expenses.append(
-            {
-                "month": datetime.strftime(month, "%Y-%m"),
-                "total": value["total"],
-                "predicted": None,
-            }
+
+
+def get_mlp_forecast(user_id, month_from, month_to, predicted_months, db: Session):
+    df, avg, std = preprocess_expenses(user_id, month_from, month_to, db)
+    if df is None:
+        return []
+
+    # Основной сглаженный ряд — это важно!
+    series = df["smooth"].values.astype(float)
+    n = len(series)
+
+    # Если данных мало — fallback
+    if n < 4:
+        return _build_result(
+            month_to, predicted_months, [avg] * predicted_months, db, user_id
         )
-    current_month = datetime.strptime(month_to, "%Y-%m") + relativedelta(months=1)
-    for value in prediction:
-        total_value = expenses_dict.get(current_month.date())
-        predicted_expenses.append(
-            {
-                "month": datetime.strftime(current_month, "%Y-%m"),
-                "total": float(total_value) if total_value else None,
-                "predicted": float(value),
-            }
-        )
-        current_month += relativedelta(months=1)
 
-    return predicted_expenses, used_fallback
+    # Массштабируем ряд только для MLP
+    scaler = StandardScaler()
+    series_scaled = scaler.fit_transform(series.reshape(-1, 1)).flatten()
 
+    # Оптимальное окно
+    window = min(max(3, n // 3), 8)
 
-def get_mlp_forecast(
-    user_id: int,
-    month_from: str,
-    month_to: str,
-    predicted_months: int,
-    db: Session,
-):
-    expenses = get_monthly_expenses(
-        user_id=user_id, month_from=month_from, month_to=month_to, db=db
-    )
-    df = pd.DataFrame(expenses, columns=["month", "total"])
-    df["month"] = pd.to_datetime(df["month"])
-    df = df.set_index("month").asfreq("MS", fill_value=0)
-    scaler = MinMaxScaler()
-    values_scaled = scaler.fit_transform(df["total"].values.reshape(-1, 1)).flatten()
-    values = np.array(values_scaled, dtype=float)
-    values = np.nan_to_num(values, nan=0.0)
-    window = min(max(3, len(values) // 4), 8)
+    # Формируем X, y
+    X, y = [], []
+    for i in range(n - window):
+        X.append(series_scaled[i : i + window])
+        y.append(series_scaled[i + window])
 
-    x, y = [], []
-    for i in range(len(values) - window):
-        seq = values[i : i + window]
-        if len(seq) == window:
-            x.append(seq)
-            y.append(values[i + window])
-    x, y = np.array(x), np.array(y)
+    X, y = np.array(X), np.array(y)
 
+    # Модель MLP (твоя рабочая конфигурация)
     model = MLPRegressor(
-        hidden_layer_sizes=(128, 64, 32), max_iter=2000, alpha=0.0005, random_state=42
+        hidden_layer_sizes=(64, 32),
+        activation="relu",
+        solver="adam",
+        max_iter=2000,
+        alpha=0.0008,
+        random_state=42,
     )
-    model.fit(x, y)
+    model.fit(X, y)
 
-    prediction = []
+    # Прогноз
+    seq = series_scaled.copy()
+    prediction_scaled = []
+
     for _ in range(predicted_months):
-        seq = values_scaled[-window:]
-        next_pred = model.predict(seq.reshape(1, -1))
-        prediction.append(next_pred[0])
-        values_scaled = np.append(values_scaled, next_pred)
-    prediction = scaler.inverse_transform(np.array(prediction).reshape(-1, 1)).flatten()
+        pred = model.predict(seq[-window:].reshape(1, -1))[0]
+        prediction_scaled.append(pred)
+        seq = np.append(seq, pred)
 
-    predicted_expenses = []
+    # Обратная трансформация
+    prediction = scaler.inverse_transform(
+        np.array(prediction_scaled).reshape(-1, 1)
+    ).flatten()
 
-    expenses_period = get_monthly_expenses(
-        user_id=user_id,
-        month_from=month_from,
-        month_to=datetime.strftime(
-            datetime.strptime(month_to, "%Y-%m")
-            + relativedelta(months=predicted_months),
-            "%Y-%m",
-        ),
-        db=db,
-    )
-    expenses_dict = {k.date(): v for k, v in expenses_period}
-    for month, value in df.iterrows():
-        predicted_expenses.append(
-            {
-                "month": datetime.strftime(month, "%Y-%m"),
-                "total": value["total"],
-                "predicted": None,
-            }
-        )
-    current_month = datetime.strptime(month_to, "%Y-%m") + relativedelta(months=1)
-    for value in prediction:
-        total_value = expenses_dict.get(current_month.date())
-        predicted_expenses.append(
-            {
-                "month": datetime.strftime(current_month, "%Y-%m"),
-                "total": float(total_value) if total_value else None,
-                "predicted": float(value),
-            }
-        )
-        current_month += relativedelta(months=1)
-
-    return predicted_expenses
-
-
-def monthly_forecast(
-    expenses: Expense,
-    window: int,
-    month_to: str | None,
-):
-    predict = 0
-    month = expenses[-1].month
-    month_to = datetime.strptime(month_to, "%Y-%m")
-    last_amount = expenses[0].total_amount
-    forecast = []
-    for val in range(window):
-        forecast.append(
-            Forecast(
-                month=expenses[val].month,
-                total="{:.2f}".format(expenses[val].total_amount),
-            )
-        )
-        predict += expenses[val].total_amount
-    for i in range(window, len(expenses)):
-        forecast.append(
-            Forecast(
-                month=expenses[i].month,
-                total="{:.2f}".format(expenses[i].total_amount),
-                predicted="{:.2f}".format(predict / window),
-            )
-        )
-        predict = predict + expenses[i].total_amount - last_amount
-        last_amount = expenses[i - window].total_amount
-    while month != month_to:
-        month += relativedelta(months=1)
-        print(predict)
-        print(last_amount)
-        forecast.append(
-            Forecast(
-                month=month, total=None, predicted="{:.2f}".format(predict / window)
-            )
-        )
-        predict = predict + forecast[-1].predicted - last_amount
-        if forecast[len(forecast) - window].total:
-            last_amount = forecast[len(forecast) - window].total
-        else:
-            last_amount = forecast[len(forecast) - window].predicted
-    return forecast
-    return forecast
+    return _build_result(month_to, predicted_months, prediction, db, user_id)
