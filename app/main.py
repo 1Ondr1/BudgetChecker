@@ -1,4 +1,3 @@
-# TODO попробовать поменять графики на интерактивные и начать делать модули прогнозирования (Етап 4)
 from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles

@@ -7,7 +7,7 @@ from sklearn.linear_model import LinearRegression
 from sklearn.neural_network import MLPRegressor
 from sklearn.preprocessing import StandardScaler
 from sqlalchemy.orm import Session
-from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 from ..services.analytics_service import get_monthly_expenses
 
@@ -81,6 +81,7 @@ def get_linear_forecast(user_id, month_from, month_to, predicted_months, db: Ses
         return []
 
     values = df["smooth"].values
+    months = np.array([d.month for d in df.index])  # месяц года 1–12
     n = len(values)
 
     if n < 3:
@@ -88,16 +89,13 @@ def get_linear_forecast(user_id, month_from, month_to, predicted_months, db: Ses
             month_to, predicted_months, [avg] * predicted_months, db, user_id
         )
 
-    if n < 12:
-        window = n - 1
-    elif n < 24:
-        window = 6
-    else:
-        window = 12
+    window = 12 if n >= 24 else 9 if n >= 12 else n - 1
 
     X, y = [], []
     for i in range(n - window):
-        X.append(values[i : i + window])
+        seq_window = values[i : i + window]
+        month_window = months[i : i + window] / 12  # нормализуем месяц 0-1
+        X.append(np.hstack([seq_window, month_window]))
         y.append(values[i + window])
 
     X, y = np.array(X), np.array(y)
@@ -107,11 +105,15 @@ def get_linear_forecast(user_id, month_from, month_to, predicted_months, db: Ses
 
     prediction = []
     seq = values.copy()
+    future_months = months.copy()
 
     for _ in range(predicted_months):
-        next_val = model.predict(seq[-window:].reshape(1, -1))[0]
+        inp = np.hstack([seq[-window:], future_months[-window:] / 12]).reshape(1, -1)
+        next_val = model.predict(inp)[0]
         prediction.append(next_val)
+
         seq = np.append(seq, next_val)
+        future_months = np.append(future_months, (future_months[-1] % 12) + 1)
 
     return _build_result(month_to, predicted_months, prediction, db, user_id)
 
@@ -123,24 +125,11 @@ def get_arima_forecast(user_id, month_from, month_to, predicted_months, db: Sess
 
     series = df["total"]
 
-    order_candidates = [
-        (1, 1, 1),
-        (2, 1, 1),
-        (1, 1, 2),
-        (3, 1, 2),
-        (3, 1, 1),
-    ]
-
     model_fit = None
     used_fallback = False
 
-    for order in order_candidates:
-        try:
-            model = ARIMA(series, order=order)
-            model_fit = model.fit()
-            break
-        except Exception:
-            continue
+    model = SARIMAX(series, order=(1, 1, 1), seasonal_order=(1, 1, 1, 12))
+    model_fit = model.fit()
 
     if model_fit is None:
         used_fallback = True
@@ -160,7 +149,7 @@ def get_mlp_forecast(user_id, month_from, month_to, predicted_months, db: Sessio
         return []
 
     # Основной сглаженный ряд — это важно!
-    series = df["smooth"].values.astype(float)
+    series = df["total"].values.astype(float)
     n = len(series)
 
     # Если данных мало — fallback
@@ -174,7 +163,14 @@ def get_mlp_forecast(user_id, month_from, month_to, predicted_months, db: Sessio
     series_scaled = scaler.fit_transform(series.reshape(-1, 1)).flatten()
 
     # Оптимальное окно
-    window = min(max(3, n // 3), 8)
+    if n < 12:
+        window = max(2, n - 1)
+    elif n < 24:
+        window = 6
+    elif n < 36:
+        window = 9
+    else:
+        window = 12
 
     # Формируем X, y
     X, y = [], []
@@ -186,7 +182,7 @@ def get_mlp_forecast(user_id, month_from, month_to, predicted_months, db: Sessio
 
     # Модель MLP (твоя рабочая конфигурация)
     model = MLPRegressor(
-        hidden_layer_sizes=(64, 32),
+        hidden_layer_sizes=(128, 64, 32),
         activation="relu",
         solver="adam",
         max_iter=2000,
