@@ -1,6 +1,8 @@
 from fastapi import Request
 from sqlalchemy.orm import Session
 
+from ..config import BASE_CATEGORIES
+from ..models.category import Category
 from ..models.user import User
 from ..utils.hashing import hash_password, verify_password
 from ..utils.jwt_handler import verify_jwt
@@ -17,6 +19,9 @@ def create_user(login: str, email: str, password: str, db: Session) -> User:
     db.add(user)
     db.commit()
     db.refresh(user)
+    for name in BASE_CATEGORIES:
+        db.add(Category(user_id=user.id, name=name))
+    db.commit()
     return user
 
 

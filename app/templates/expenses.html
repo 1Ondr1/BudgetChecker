@@ -32,6 +32,22 @@
       .totals { justify-content:space-between; }
     }
   </style>
+
+  <script>
+    function toggleCategoryInput() {
+      const mode = document.querySelector('input[name="category_mode"]:checked').value;
+      const select = document.getElementById('category_select');
+      const text = document.getElementById('category_text');
+
+      if (mode === 'list') {
+        select.style.display = 'block';
+        text.style.display = 'none';
+      } else {
+        select.style.display = 'none';
+        text.style.display = 'block';
+      }
+    }
+  </script>
 </head>
 <body>
   <div class="wrap">
@@ -45,9 +61,10 @@
       </div>
     </div>
 
-    <div class="card">
-      <a href="/analytics" class="btn">Аналитика</a>
-      <a href="/forecast" class="btn">Прогнозы</a>
+    <div class="card" style="display: flex; flex-direction: row; justify-content: center; gap: 10px;">
+      <a class="btn btn-primary" href="/user/home">Главная</a>
+      <a class="btn btn-primary" href="/analytics">Аналитика</a>
+      <a class="btn btn-primary" href="/forecast">Прогнозы</a>
     </div>
 
     <!-- ФИЛЬТРЫ -->
@@ -66,6 +83,7 @@
           {% endfor %}
         </select>
         <button type="submit">Фильтровать</button>
+
         {% if date_from or date_in or category %}
           <style>
             .filters form { display:grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap:12px; }
@@ -78,20 +96,38 @@
     <!-- ДОБАВЛЕНИЕ -->
     <div class="card add">
       <form method="post" action="/expenses/add_expense">
-         <select name="category" id="categories">
+
+        <!-- Переключатель режима -->
+        <div style="grid-column: span 4; display:flex; gap:16px; align-items:center; margin-bottom:8px;">
+          <label><input type="radio" name="category_mode" value="list" checked onchange="toggleCategoryInput()"> Выбрать категорию</label>
+          <label><input type="radio" name="category_mode" value="text" onchange="toggleCategoryInput()"> Ввести вручную</label>
+        </div>
+
+        <!-- SELECT -->
+        <select name="category_select" id="category_select">
           {% for i in categories %}
-            <option value={{i.id}}>{{i.name}}</option>
+            <option value="{{ i.id }}">{{ i.name }}</option>
           {% endfor %}
-          </select>
+        </select>
+
+        <!-- TEXT INPUT -->
+        <input type="text" name="category_text" id="category_text" placeholder="Введите категорию" style="display:none;" />
+
         <input type="number" step="0.01" name="amount" min="0.01" placeholder="Сумма" required />
         <input type="date" name="date" />
         <button type="submit" class="btn btn-primary">Добавить</button>
       </form>
+
       {% if error %}
         <p style="color: var(--danger); margin-top:10px;">{{ error }}</p>
       {% endif %}
+
       {% if message %}
         <p style="color: #065f46; margin-top:10px;">{{ message }}</p>
+      {% endif %}
+
+      {% if ai_category_result %}
+        <p style="margin-top:12px; color:#1d4ed8; font-weight:600;">ИИ определил категорию как: "{{ ai_category_result }}"</p>
       {% endif %}
     </div>
 
