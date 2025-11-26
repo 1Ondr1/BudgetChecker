@@ -48,6 +48,7 @@ def show_expenses(
     )
 
 
+# TODO Додалать это
 @router.post("/add_expense")
 def add_expense(
     category_mode: str = Form(...),
