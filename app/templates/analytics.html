@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="uk">
 <head>
   <meta charset="UTF-8" />
-  <title>Аналитика расходов</title>
+  <title>Аналітика витрат</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
@@ -14,7 +14,7 @@
     button { background:#2563eb; color:#fff; border:0; cursor:pointer; }
     button:hover { background:#1e4fcc; }
 
-    .tabs { max-width:1200px; margin:0 auto; background:#fff; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.05); }
+    .tabs { max-width:1200px; margin:0 auto; background:#fff; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.05); padding: 20px; }
     input[type="radio"] { display:none; }
     label { display:inline-block; padding:12px 24px; cursor:pointer; border-bottom:2px solid transparent; font-weight:500; }
     input:checked + label { border-bottom:2px solid #2563eb; color:#2563eb; background:#f9fafb; }
@@ -28,34 +28,65 @@
 
     .charts { flex:1; display:flex; flex-direction:column; gap:20px; }
     canvas { background:#fff; padding:16px; border-radius:10px; box-shadow:0 2px 6px rgba(0,0,0,0.05); box-sizing: unset !important;}
+
+    /* --- НОВЕ: блок рекомендацій --- */
+    .recommendations {
+        max-width: 1200px;
+        margin: 20px auto 20px auto;
+        background: #fff;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+    .recommendations h2 {
+        margin-top: 0;
+        margin-bottom: 15px;
+    }
+    .recommendations ul {
+        margin: 0;
+        padding-left: 20px;
+    }
+    .recommendations li {
+        margin-bottom: 6px;
+    }
   </style>
 </head>
 <body>
-  <h1>Аналитика расходов</h1>
+  <h1>Аналітика витрат</h1>
 
   <div class="controls">
     <form method="get" action="/analytics">
       <input type="month" name="month_from" value="{{ month_from or '' }}" required>
       <input type="month" name="month_to" value="{{ month_to or '' }}" required>
-      <button type="submit">Показать</button>
-      <a href="/analytics"><button type="button">Сбросить</button></a>
+      <button type="submit">Показати</button>
+      <a href="/analytics"><button type="button">Скинути</button></a>
       <a href="/expenses"><button type="button">Назад</button></a>
     </form>
   </div>
 
+  {% if recommendations %}
+  <div class="recommendations">
+      <h2>Рекомендації для Вас</h2>
+      <ul>
+          {% for rec in recommendations %}
+          <li>{{ rec }}</li>
+          {% endfor %}
+      </ul>
+  </div>
+  {% endif %}
+
   <div class="tabs">
     <input type="radio" name="tab" id="tab1" checked>
-    <label for="tab1">Помесячно</label>
+    <label for="tab1">По місяцях</label>
     <input type="radio" name="tab" id="tab2">
-    <label for="tab2">По категориям</label>
+    <label for="tab2">За категоріями</label>
 
-    <!-- === ПОМЕСЯЧНО === -->
     <div class="tab-content" id="content1">
       {% if monthly_expenses %}
         <div class="analytics-grid">
           <table>
             <thead>
-              <tr><th>Месяц</th><th>Сумма</th></tr>
+              <tr><th>Місяць</th><th>Сума</th></tr>
             </thead>
             <tbody>
               {% for row in monthly_expenses %}
@@ -72,17 +103,16 @@
           </div>
         </div>
       {% else %}
-        <p style="text-align:center;">Нет данных для выбранного периода.</p>
+        <p style="text-align:center;">Немає даних за обраний період.</p>
       {% endif %}
     </div>
 
-    <!-- === ПО КАТЕГОРИЯМ === -->
     <div class="tab-content" id="content2">
       {% if category_expenses %}
         <div class="analytics-grid">
           <table>
             <thead>
-              <tr><th>Категория</th><th>Сумма</th></tr>
+              <tr><th>Категорія</th><th>Сума</th></tr>
             </thead>
             <tbody>
               {% for row in category_expenses %}
@@ -99,26 +129,24 @@
           </div>
         </div>
       {% else %}
-        <p style="text-align:center;">Нет данных для выбранного периода.</p>
+        <p style="text-align:center;">Немає даних за обраний період.</p>
       {% endif %}
     </div>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
   <script>
-    // === Данные из Python ===
     const months = {{ months | tojson }};
     const totals = {{ totals | tojson }};
     const categories = {{ category_labels | tojson }};
     const categoryTotals = {{ category_values | tojson }};
 
-    // === Помесячно: линейный ===
     new Chart(document.getElementById('chartMonthlyLine'), {
       type: 'line',
       data: {
         labels: months,
         datasets: [{
-          label: 'Расходы по месяцам',
+          label: 'Витрати по місяцях',
           data: totals,
           borderColor: '#2563eb',
           backgroundColor: 'rgba(37,99,235,0.2)',
@@ -128,41 +156,39 @@
       },
       options: {
         scales: {
-          x: { title: { display: true, text: 'Месяц' } },
-          y: { title: { display: true, text: 'Сумма (грн)' } }
+          x: { title: { display: true, text: 'Місяць' } },
+          y: { title: { display: true, text: 'Сума (грн)' } }
         },
         plugins: { legend: { display: false } },
         interaction: { mode: 'nearest', intersect: false }
       }
     });
 
-    // === Категории: pie ===
     new Chart(document.getElementById('chartCategoryPie'), {
-    type: 'pie',
-    data: {
-      labels: categories,
-      datasets: [{
-        data: categoryTotals,
-        backgroundColor: ['#2563eb', '#16a34a', '#f97316', '#dc2626', '#9333ea', '#0ea5e9']
-      }]
-    },
-    options: {
-      plugins: {
-        legend: { position: 'top' },
-        datalabels: {
-          color: '#fff',
-          formatter: (value, ctx) => {
-            const dataArr = ctx.chart.data.datasets[0].data;
-            const total = dataArr.reduce((acc, val) => acc + val, 0);
-            const percentage = ((value / total) * 100).toFixed(1) + '%';
-            return percentage;
+      type: 'pie',
+      data: {
+        labels: categories,
+        datasets: [{
+          data: categoryTotals,
+          backgroundColor: ['#2563eb', '#16a34a', '#f97316', '#dc2626', '#9333ea', '#0ea5e9', '#b3ad09', '#96084a']
+        }]
+      },
+      options: {
+        plugins: {
+          legend: { position: 'top' },
+          datalabels: {
+            color: '#fff',
+            formatter: (value, ctx) => {
+              const dataArr = ctx.chart.data.datasets[0].data;
+              const total = dataArr.reduce((acc, val) => acc + val, 0);
+              const percentage = ((value / total) * 100).toFixed(1) + '%';
+              return percentage;
+            }
           }
         }
-      }
-    },
-    plugins: [ChartDataLabels]
-  });
-
+      },
+      plugins: [ChartDataLabels]
+    });
   </script>
 </body>
 </html>

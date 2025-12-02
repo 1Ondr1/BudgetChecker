@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="uk">
 <head>
   <meta charset="UTF-8" />
-  <title>Мои расходы</title>
+  <title>Мої витрати</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     :root { --bg:#f6f7fb; --card:#fff; --text:#111827; --muted:#6b7280; --prim:#2563eb; --danger:#dc2626; }
@@ -53,27 +53,26 @@
   <div class="wrap">
 
     <div class="header">
-      <h1>Мои расходы</h1>
+      <h1>Мої витрати</h1>
       <div class="totals">
         <span class="pill">
-          Итого: {{ expenses|sum(attribute='amount') if expenses else 0 }} ₴
+          Разом: {{ expenses|sum(attribute='amount') if expenses else 0 }} ₴
         </span>
       </div>
     </div>
 
     <div class="card" style="display: flex; flex-direction: row; justify-content: center; gap: 10px;">
-      <a class="btn btn-primary" href="/user/home">Главная</a>
-      <a class="btn btn-primary" href="/analytics">Аналитика</a>
-      <a class="btn btn-primary" href="/forecast">Прогнозы</a>
+      <a class="btn btn-primary" href="/user/home">Головна</a>
+      <a class="btn btn-primary" href="/analytics">Аналітика</a>
+      <a class="btn btn-primary" href="/forecast">Прогнози</a>
     </div>
 
-    <!-- ФИЛЬТРЫ -->
     <div class="card filters">
       <form method="get" action="/expenses">
         <input type="date" name="date_from" value="{{ date_from }}" />
         <input type="date" name="date_to" value="{{ date_to }}" />
         <select name="category" id="categories">
-          <option value="" selected>Все</option>
+          <option value="" selected>Всі</option>
           {% for i in categories %}
           {% if i.name == category %}
             <option value={{i.name}} selected>{{i.name}}</option>
@@ -82,40 +81,40 @@
           {% endif %}
           {% endfor %}
         </select>
-        <button type="submit">Фильтровать</button>
+        <button type="submit">Фільтрувати</button>
 
         {% if date_from or date_in or category %}
           <style>
             .filters form { display:grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap:12px; }
           </style>
-          <a href="/expenses" class="btn-danger">Очистить</a>
+          <a href="/expenses" class="btn-danger">Очистити</a>
         {% endif %}
       </form>
     </div>
 
-    <!-- ДОБАВЛЕНИЕ -->
     <div class="card add">
       <form method="post" action="/expenses/add_expense">
 
-        <!-- Переключатель режима -->
         <div style="grid-column: span 4; display:flex; gap:16px; align-items:center; margin-bottom:8px;">
-          <label><input type="radio" name="category_mode" value="list" checked onchange="toggleCategoryInput()"> Выбрать категорию</label>
-          <label><input type="radio" name="category_mode" value="text" onchange="toggleCategoryInput()"> Ввести вручную</label>
+          <label><input type="radio" name="category_mode" value="list" checked onchange="toggleCategoryInput()"> Обрати категорію</label>
+          <label><input type="radio" name="category_mode" value="text" onchange="toggleCategoryInput()"> Ввести вручну</label>
         </div>
 
-        <!-- SELECT -->
         <select name="category_select" id="category_select">
           {% for i in categories %}
             <option value="{{ i.id }}">{{ i.name }}</option>
           {% endfor %}
         </select>
 
-        <!-- TEXT INPUT -->
-        <input type="text" name="category_text" id="category_text" placeholder="Введите категорию" style="display:none;" />
+        <input type="text" name="category_text" id="category_text" placeholder="Введіть категорію" style="display:none;" />
 
-        <input type="number" step="0.01" name="amount" min="0.01" placeholder="Сумма" required />
+        <input type="number" step="0.01" name="amount" min="0.01" placeholder="Сума" required />
         <input type="date" name="date" />
-        <button type="submit" class="btn btn-primary">Добавить</button>
+        <button type="submit" class="btn btn-primary">Додати</button>
+        {% if predicted_label %}
+          <p>Передбачена категорія: {{ predicted_label }}</p>
+          <p>Впевненість: {{ confidence | round(2) }}</p>
+        {% endif %}
       </form>
 
       {% if error %}
@@ -127,45 +126,52 @@
       {% endif %}
 
       {% if ai_category_result %}
-        <p style="margin-top:12px; color:#1d4ed8; font-weight:600;">ИИ определил категорию как: "{{ ai_category_result }}"</p>
+        <p style="margin-top:12px; color:#1d4ed8; font-weight:600;">ШІ визначив категорію як: "{{ ai_category_result }}"</p>
       {% endif %}
     </div>
 
-    <!-- ТАБЛИЦА -->
-    <div class="card">
-      {% if expenses and expenses|length > 0 %}
-      <table class="table">
-        <thead>
-          <tr>
-            <th>Дата</th>
-            <th>Категория</th>
-            <th>Сумма</th>
-            <th style="width:160px;">Действия</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for e in expenses %}
-          <tr>
-            <td>{{ e.date.strftime('%d.%m.%Y') if e.date else '-' }}</td>
-            <td>{{ e.category.name }}</td>
-            <td>{{ '%.2f'|format(e.amount) }}</td>
-            <td>
-              <div class="row-actions">
-                <form method="post" action="/expenses/delete_expense" onsubmit="return confirm('Удалить расход?');">
-                  <input type="hidden" name="expense_id" value="{{ e.id }}">
-                  <button type="submit" class="btn btn-danger">Удалить</button>
-                </form>
-              </div>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% else %}
-        <div class="empty">Пока нет расходов. Добавьте первый в форме выше.</div>
-      {% endif %}
-    </div>
+    <script>
+    function toggleMoveSelect() {
+        const action = document.getElementById("delete-action").value;
+        document.getElementById("move-block").style.display =
+            action === "move" ? "block" : "none";
+    }
+    </script>
 
-  </div>
+<div class="card">
+  {% if expenses and expenses|length > 0 %}
+  <table class="table">
+    <thead>
+      <tr>
+        <th>Дата</th>
+        <th>Категорія</th>
+        <th>Сума</th>
+        <th style="width:160px;">Дії</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in expenses %}
+      <tr>
+        <td>{{ e.date.strftime('%d.%m.%Y') if e.date else '-' }}</td>
+        <td>{{ e.category.name }}</td>
+        <td>{{ '%.2f'|format(e.amount) }}</td>
+        <td>
+          <div class="row-actions">
+            <form method="post" action="/expenses/delete_expense" onsubmit="return confirm('Видалити витрату?');">
+              <input type="hidden" name="expense_id" value="{{ e.id }}">
+              <button type="submit" class="btn btn-danger">Видалити</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">Поки немає витрат. Додайте першу через форму вище.</div>
+  {% endif %}
+</div>
+
+</div>
 </body>
 </html>

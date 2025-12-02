@@ -6,7 +6,11 @@ from sqlalchemy.orm import Session
 
 from ..config import templates
 from ..database import get_db
-from ..services.analytics_service import get_category_expenses, get_monthly_expenses
+from ..services.analytics_service import (
+    generate_recommendations,
+    get_category_expenses,
+    get_monthly_expenses,
+)
 from ..services.user_services import get_current_user
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
@@ -36,6 +40,12 @@ def show_page(
     totals = [e.total_amount for e in monthly_expenses]
     category_labels = [c.category for c in category_expenses]
     category_values = [c.total_amount for c in category_expenses]
+    recommendations = generate_recommendations(
+        user_id=current_user["user_id"],
+        month_from=month_from,
+        month_to=month_to,
+        db=db,
+    )
     return templates.TemplateResponse(
         "analytics.html",
         {
@@ -48,5 +58,6 @@ def show_page(
             "category_expenses": category_expenses,
             "month_to": month_to,
             "month_from": month_from,
+            "recommendations": recommendations,
         },
     )

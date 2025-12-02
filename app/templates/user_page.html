@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>Профиль {{ user.login }}</title>
+    <title>Профіль {{ user.login }}</title>
     <style>
         body { font-family: Arial, sans-serif; background-color: #f3f4f6; text-align: center; }
         .card {
@@ -13,15 +13,17 @@
             border-radius: 10px;
             box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         }
+        a { display: block; margin-top: 10px; color: #2563eb; text-decoration: none; }
+        a:hover { text-decoration: underline; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h2>Добро пожаловать, {{ user.login }}!</h2>
+        <h2>Вітаємо, {{ user.login }}!</h2>
         <p>Email: {{ user.email }}</p>
-        <p>Дата регистрации: {{ user.create_date.strftime('%d.%m.%Y') }}</p>
-        <a href="/expenses">Затраты</a>
-        <a href="/auth/logout">Выйти</a>
+        <p>Дата реєстрації: {{ user.create_date.strftime('%d.%m.%Y') }}</p>
+        <a href="/expenses">Витрати</a>
+        <a href="/auth/logout">Вийти</a>
     </div>
 </body>
 </html>

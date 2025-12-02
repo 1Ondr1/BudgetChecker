@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="uk">
 <head>
   <meta charset="UTF-8" />
-  <title>Прогнозирование расходов</title>
+  <title>Прогноз витрат</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
@@ -27,73 +27,66 @@
 
 <body>
 
-<h1>Прогнозирование расходов</h1>
+<h1>Прогноз витрат</h1>
 
-<!-- ВКЛАДКИ -->
 <div class="tabs">
-  <div class="tab active" data-tab="linear">Линейная регрессия</div>
+  <div class="tab active" data-tab="linear">Лінійна регресія</div>
   <div class="tab" data-tab="arima">ARIMA</div>
   <div class="tab" data-tab="mlp">MLP</div>
-  <div class="tab" data-tab="compare">Сравнение</div>
+  <div class="tab" data-tab="compare">Порівняння</div>
 </div>
 
-<!-- ОБЩАЯ ФОРМА -->
 <form id="forecastForm">
   <fieldset>
-    <legend>📅 Параметры прогнозирования</legend>
+    <legend>📅 Параметри прогнозу</legend>
 
-    <label>Период с:</label>
+    <label>Період з:</label>
     <input type="month" name="month_from" required>
 
     <label>по:</label>
     <input type="month" name="month_to" required>
 
-    <label>Прогнозировать:</label>
+    <label>Прогнозувати (міс.):</label>
     <input type="number" name="predict_months" value="12" min="1" max="24">
 
-    <button type="submit">Построить</button>
-    <a href="/forecast"><button type="button">Сбросить</button></a>
+    <button type="submit">Побудувати</button>
+    <a href="/forecast"><button type="button">Скинути</button></a>
     <a href="/expenses"><button type="button">Назад</button></a>
 
     <div id="errorMessage" class="warning"></div>
   </fieldset>
 </form>
 
-<!-- LINEAR -->
 <div id="linear" class="section active">
   <canvas id="linearChart"></canvas>
-  <table><thead><tr><th>Месяц</th><th>Факт</th><th>Прогноз</th></tr></thead>
+  <table><thead><tr><th>Місяць</th><th>Факт</th><th>Прогноз</th></tr></thead>
   <tbody id="linearTable"></tbody></table>
 </div>
 
-<!-- ARIMA -->
 <div id="arima" class="section">
   <div id="arimaWarning" class="warning"></div>
   <canvas id="arimaChart"></canvas>
-  <table><thead><tr><th>Месяц</th><th>Факт</th><th>Прогноз</th></tr></thead>
+  <table><thead><tr><th>Місяць</th><th>Факт</th><th>Прогноз</th></tr></thead>
   <tbody id="arimaTable"></tbody></table>
 </div>
 
-<!-- MLP -->
 <div id="mlp" class="section">
   <canvas id="mlpChart"></canvas>
-  <table><thead><tr><th>Месяц</th><th>Факт</th><th>Прогноз</th></tr></thead>
+  <table><thead><tr><th>Місяць</th><th>Факт</th><th>Прогноз</th></tr></thead>
   <tbody id="mlpTable"></tbody></table>
 </div>
 
-<!-- СРАВНЕНИЕ -->
 <div id="compare" class="section">
   <canvas id="compareChart"></canvas>
   <table>
     <thead>
-      <tr><th>Месяц</th><th>Факт</th><th>Linear</th><th>ARIMA</th><th>MLP</th></tr>
+      <tr><th>Місяць</th><th>Факт</th><th>Linear</th><th>ARIMA</th><th>MLP</th></tr>
     </thead>
     <tbody id="compareTable"></tbody>
   </table>
 </div>
 
 <script>
-  // ВКЛАДКИ
   document.querySelectorAll(".tab").forEach(tab => {
     tab.addEventListener("click", () => {
       document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -117,29 +110,19 @@
       return;
     }
 
-    const {
-      months, actual_values,
-      linear_predicted, arima_predicted, mlp_predicted,
-      used_fallback
-    } = data;
+    const { months, actual_values, linear_predicted, arima_predicted, mlp_predicted, used_fallback } = data;
 
-    // === ARIMA Fallback ===
-    const warn = document.getElementById("arimaWarning");
-    warn.textContent = used_fallback ? "⚠ ARIMA не смогла обучиться — используется усреднённый прогноз." : "";
+    document.getElementById("arimaWarning").textContent = used_fallback ? "⚠ ARIMA не змогла навчитись — використовується усереднений прогноз." : "";
 
-    // === LINEAR ===
     fillTable("linearTable", months, actual_values, linear_predicted);
     renderChart("linearChart", months, actual_values, linear_predicted, "#2563eb");
 
-    // === ARIMA ===
     fillTable("arimaTable", months, actual_values, arima_predicted);
     renderChart("arimaChart", months, actual_values, arima_predicted, "#9333ea");
 
-    // === MLP ===
     fillTable("mlpTable", months, actual_values, mlp_predicted);
     renderChart("mlpChart", months, actual_values, mlp_predicted, "#f59e0b");
 
-    // === COMPARE ===
     fillCompareTable(months, actual_values, linear_predicted, arima_predicted, mlp_predicted);
     renderCompareChart(months, actual_values, linear_predicted, arima_predicted, mlp_predicted);
   });
@@ -147,72 +130,42 @@
   function fillTable(id, months, actual, predicted) {
     const tbody = document.getElementById(id);
     tbody.innerHTML = "";
-
     months.forEach((m, i) => {
-      tbody.innerHTML += `
-      <tr>
-        <td>${m}</td>
-        <td>${actual[i] != null ? actual[i].toFixed(0) : "-"}</td>
-        <td>${predicted[i] != null ? predicted[i].toFixed(0) : "-"}</td>
-      </tr>`;
+      tbody.innerHTML += `<tr><td>${m}</td><td>${actual[i] != null ? actual[i].toFixed(0) : "-"}</td><td>${predicted[i] != null ? predicted[i].toFixed(0) : "-"}</td></tr>`;
     });
   }
 
   function fillCompareTable(months, a, l, ar, m) {
     const tbody = document.getElementById("compareTable");
     tbody.innerHTML = "";
-
     months.forEach((month, i) => {
-      tbody.innerHTML += `
-      <tr>
-        <td>${month}</td>
-        <td>${Math.round(a[i]) ?? "-"}</td>
-        <td>${Math.round(l[i]) ?? "-"}</td>
-        <td>${Math.round(ar[i]) ?? "-"}</td>
-        <td>${Math.round(m[i]) ?? "-"}</td>
-      </tr>`;
+      tbody.innerHTML += `<tr><td>${month}</td><td>${Math.round(a[i]) ?? "-"}</td><td>${Math.round(l[i]) ?? "-"}</td><td>${Math.round(ar[i]) ?? "-"}</td><td>${Math.round(m[i]) ?? "-"}</td></tr>`;
     });
   }
 
   function renderChart(id, labels, a, p, color) {
     if (charts[id]) charts[id].destroy();
-
     charts[id] = new Chart(document.getElementById(id), {
       type: "line",
-      data: {
-        labels,
-        datasets: [
-          { label: "Факт", data: a, borderColor: "#16a34a", tension: 0.2 },
-          { label: "Прогноз", data: p, borderColor: color, borderDash: [4,4], tension: 0.2 }
-        ]
-      },
-      options: {
-        animation: false,
-        plugins: { legend: { position: 'bottom' } },
-        animations: { tension: { duration: 0 }, x:{duration:0}, y:{duration:0} }
-      }
+      data: { labels, datasets: [
+        { label: "Факт", data: a, borderColor: "#16a34a", tension: 0.2 },
+        { label: "Прогноз", data: p, borderColor: color, borderDash: [4,4], tension: 0.2 }
+      ]},
+      options: { animation:false, plugins:{legend:{position:'bottom'}}, animations:{tension:{duration:0},x:{duration:0},y:{duration:0}}}
     });
   }
 
   function renderCompareChart(labels, a, l, ar, m) {
     if (charts.compare) charts.compare.destroy();
-
     charts.compare = new Chart(document.getElementById("compareChart"), {
-      type: "line",
-      data: {
-        labels,
-        datasets: [
-          { label:"Факт", data:a, borderColor:"#16a34a", tension: 0.2 },
-          { label:"Linear", data:l, borderColor:"#2563eb", borderDash:[4,4], tension: 0.2 },
-          { label:"ARIMA", data:ar, borderColor:"#9333ea", borderDash:[6,4], tension: 0.2 },
-          { label:"MLP", data:m, borderColor:"#f59e0b", borderDash:[2,4], tension: 0.2 },
-        ]
-      },
-      options: {
-        animation: false,
-        plugins:{ legend:{ position:'bottom' } },
-        animations:{ tension:{duration:0}, x:{duration:0}, y:{duration:0} }
-      }
+      type:"line",
+      data: { labels, datasets:[
+        { label:"Факт", data:a, borderColor:"#16a34a", tension:0.2 },
+        { label:"Linear", data:l, borderColor:"#2563eb", borderDash:[4,4], tension:0.2 },
+        { label:"ARIMA", data:ar, borderColor:"#9333ea", borderDash:[6,4], tension:0.2 },
+        { label:"MLP", data:m, borderColor:"#f59e0b", borderDash:[2,4], tension:0.2 }
+      ]},
+      options:{animation:false, plugins:{legend:{position:'bottom'}}, animations:{tension:{duration:0},x:{duration:0},y:{duration:0}}}
     });
   }
 </script>

@@ -13,7 +13,6 @@ from ..services.analytics_service import get_monthly_expenses
 
 
 def preprocess_expenses(user_id, month_from, month_to, db: Session):
-    """Единая подготовка данных — формат результата не изменяем."""
     expenses = get_monthly_expenses(
         user_id=user_id, month_from=month_from, month_to=month_to, db=db
     )
@@ -26,8 +25,6 @@ def preprocess_expenses(user_id, month_from, month_to, db: Session):
 
     df = df.asfreq("MS", fill_value=0)
 
-    # EMA сглаживание (во всех моделях одинаковое)
-    # df["smooth"] = df["total"].ewm(alpha=0.8).mean()
     df["smooth"] = (
         0.5 * df["total"].ewm(alpha=0.6, adjust=False).mean()
         + 0.5 * df["total"].rolling(window=3, min_periods=1).mean()
@@ -40,7 +37,6 @@ def preprocess_expenses(user_id, month_from, month_to, db: Session):
 
 
 def _build_result(month_to, predicted_months, prediction, db, user_id):
-    """Формирование результата — одинаково для всех моделей."""
     predicted_expenses = []
     month_from_next = (
         datetime.strptime(month_to, "%Y-%m") + relativedelta(months=1)
@@ -80,8 +76,8 @@ def get_linear_forecast(user_id, month_from, month_to, predicted_months, db: Ses
     if df is None:
         return []
 
-    values = df["smooth"].values
-    months = np.array([d.month for d in df.index])  # месяц года 1–12
+    values = df["total"].values
+    months = np.arange(len(df))
     n = len(values)
 
     if n < 3:
@@ -94,7 +90,7 @@ def get_linear_forecast(user_id, month_from, month_to, predicted_months, db: Ses
     X, y = [], []
     for i in range(n - window):
         seq_window = values[i : i + window]
-        month_window = months[i : i + window] / 12  # нормализуем месяц 0-1
+        month_window = months[i : i + window] / 12
         X.append(np.hstack([seq_window, month_window]))
         y.append(values[i + window])
 
@@ -113,7 +109,7 @@ def get_linear_forecast(user_id, month_from, month_to, predicted_months, db: Ses
         prediction.append(next_val)
 
         seq = np.append(seq, next_val)
-        future_months = np.append(future_months, (future_months[-1] % 12) + 1)
+        future_months = np.append(future_months, future_months[-1] + 1)
 
     return _build_result(month_to, predicted_months, prediction, db, user_id)
 
@@ -148,21 +144,17 @@ def get_mlp_forecast(user_id, month_from, month_to, predicted_months, db: Sessio
     if df is None:
         return []
 
-    # Основной сглаженный ряд — это важно!
     series = df["total"].values.astype(float)
     n = len(series)
 
-    # Если данных мало — fallback
     if n < 4:
         return _build_result(
             month_to, predicted_months, [avg] * predicted_months, db, user_id
         )
 
-    # Массштабируем ряд только для MLP
     scaler = StandardScaler()
     series_scaled = scaler.fit_transform(series.reshape(-1, 1)).flatten()
 
-    # Оптимальное окно
     if n < 12:
         window = max(2, n - 1)
     elif n < 24:
@@ -172,7 +164,6 @@ def get_mlp_forecast(user_id, month_from, month_to, predicted_months, db: Sessio
     else:
         window = 12
 
-    # Формируем X, y
     X, y = [], []
     for i in range(n - window):
         X.append(series_scaled[i : i + window])
@@ -180,7 +171,6 @@ def get_mlp_forecast(user_id, month_from, month_to, predicted_months, db: Sessio
 
     X, y = np.array(X), np.array(y)
 
-    # Модель MLP (твоя рабочая конфигурация)
     model = MLPRegressor(
         hidden_layer_sizes=(128, 64, 32),
         activation="relu",
@@ -191,7 +181,6 @@ def get_mlp_forecast(user_id, month_from, month_to, predicted_months, db: Sessio
     )
     model.fit(X, y)
 
-    # Прогноз
     seq = series_scaled.copy()
     prediction_scaled = []
 
@@ -200,7 +189,6 @@ def get_mlp_forecast(user_id, month_from, month_to, predicted_months, db: Sessio
         prediction_scaled.append(pred)
         seq = np.append(seq, pred)
 
-    # Обратная трансформация
     prediction = scaler.inverse_transform(
         np.array(prediction_scaled).reshape(-1, 1)
     ).flatten()

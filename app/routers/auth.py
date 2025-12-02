@@ -25,7 +25,7 @@ def register(
             "register.html",
             {
                 "request": request,
-                "error": "User with this login or email already exist",
+                "error": "Користучач з таким логіном або почтою вже існує!",
             },
         )
     UserResponse.model_validate(user)
@@ -42,7 +42,7 @@ def login(
     user = user_services.auth_user(login, password, db)
     if not user:
         return templates.TemplateResponse(
-            "login.html", {"request": request, "error": "Wrong login or password"}
+            "login.html", {"request": request, "error": "Неправильний логін або пароль"}
         )
 
     token = create_jwt(user)

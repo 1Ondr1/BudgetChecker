@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="uk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Авторизация</title>
+    <title>Авторизація</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -49,19 +49,22 @@
 </head>
 <body>
     <div class="form-container">
-        <h2>Авторизация</h2>
+        <h2>Авторизація</h2>
         <form action="/auth/login" method="post">
-            <input type="text" name="login" placeholder="Логин" required>
+            <input type="text" name="login" placeholder="Логін" required>
             <input type="password" name="password" placeholder="Пароль" required>
+
             {% if error %}
                 <div style="color: red; text-align: center; margin-bottom: 10px;">
                     {{ error }}
                 </div>
             {% endif %}
-            <button type="submit">Войти</button>
+
+            <button type="submit">Увійти</button>
         </form>
+
         <div class="link">
-            Нет аккаунта? <a href="/auth/register">Зарегистрироваться</a>
+            Немає акаунта? <a href="/auth/register">Зареєструватися</a>
         </div>
     </div>
 </body>

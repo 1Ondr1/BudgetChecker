@@ -19,7 +19,7 @@ def user_page(
         return RedirectResponse(url="/auth/login", status_code=303)
     user = check_user(current_user["user_id"], db)
     if not user:
-        return HTTPException(status_code=404, detail="User not found")
+        return HTTPException(status_code=404, detail="Користувача не знайдено")
     return templates.TemplateResponse(
         "user_page.html", {"request": request, "user": user}
     )
@@ -28,4 +28,4 @@ def user_page(
 @router.delete("/user/{user.id}")
 def delete(user_id: int, db: Session = Depends(get_db)):
     user = delete_user(user_id=user_id, db=db)
-    return {"message": f"User {user.login} was deleted"}
+    return {"message": f"Користувач {user.login} був видалений"}
